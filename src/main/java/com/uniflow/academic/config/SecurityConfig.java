@@ -4,6 +4,7 @@ import com.uniflow.academic.shared.infrastructure.security.GoogleTokenAuthentica
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -39,10 +40,15 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/",
                                 "/health",
+                                "/students/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/webjars/**"
+                        ).permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/students/{studentId}"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

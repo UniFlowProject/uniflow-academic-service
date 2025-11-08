@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS academic.students (
 );
 
 ALTER TABLE academic.students
-    ADD CONSTRAINT IF NOT EXISTS uk_student_provider UNIQUE (provider, provider_id);
+    ADD CONSTRAINT uk_student_provider UNIQUE (provider, provider_id);
 
 ALTER TABLE academic.students
-    ADD CONSTRAINT IF NOT EXISTS uk_student_student_id UNIQUE (student_id);
+    ADD CONSTRAINT uk_student_student_id UNIQUE (student_id);
 
-CREATE INDEX IF NOT EXISTS idx_student_email
+CREATE INDEX idx_student_email
     ON academic.students (email);

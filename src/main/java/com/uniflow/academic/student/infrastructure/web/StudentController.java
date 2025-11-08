@@ -1,6 +1,7 @@
 package com.uniflow.academic.student.infrastructure.web;
 
 import com.uniflow.academic.student.application.ports.in.GetStudentByIdQuery;
+import com.uniflow.academic.student.application.ports.in.GetStudentByProviderIdQuery;
 import com.uniflow.academic.student.application.ports.in.RegisterStudentCommand;
 import com.uniflow.academic.student.infrastructure.web.dto.RegisterStudentHttpRequest;
 import com.uniflow.academic.student.infrastructure.web.dto.StudentHttpResponse;
@@ -27,6 +28,7 @@ public class StudentController {
 
     private final RegisterStudentCommand registerStudentCommand;
     private final GetStudentByIdQuery getStudentByIdQuery;
+    private final GetStudentByProviderIdQuery getStudentByProviderIdQuery;
     private final StudentHttpMapper mapper;
 
     @PostMapping("/register")
@@ -63,6 +65,24 @@ public class StudentController {
     ) {
         log.info("GET /students/{} - retrieve student", studentId);
         var student = getStudentByIdQuery.getById(studentId);
+        return ResponseEntity.ok(mapper.toHttpResponse(student));
+    }
+
+    @GetMapping("/google/{googleId}")
+    @Operation(summary = "Get student information by Google provider ID")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Student retrieved successfully",
+                    content = @Content(schema = @Schema(implementation = StudentHttpResponse.class))
+            ),
+            @ApiResponse(responseCode = "404", description = "Student not found")
+    })
+    public ResponseEntity<StudentHttpResponse> getStudentByGoogleId(
+            @PathVariable String googleId
+    ) {
+        log.info("GET /students/google/{} - retrieve student by Google ID", googleId);
+        var student = getStudentByProviderIdQuery.getByProviderId(googleId);
         return ResponseEntity.ok(mapper.toHttpResponse(student));
     }
 }
