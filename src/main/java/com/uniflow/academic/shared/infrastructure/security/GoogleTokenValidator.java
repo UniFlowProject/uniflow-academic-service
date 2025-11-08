@@ -27,7 +27,7 @@ public class GoogleTokenValidator {
      * @param accessToken Token JWT desde Authorization header
      * @return Map con información del token si es válido, null si no
      */
-    public Map validateToken(String accessToken) {
+    public Map<String, Object> validateToken(String accessToken) {
         try {
             log.debug("Validating token with Google: {}",
                     accessToken.substring(0, 20) + "...");
@@ -36,7 +36,7 @@ public class GoogleTokenValidator {
             String url = GOOGLE_TOKENINFO_URL + "?access_token=" + accessToken;
 
             // Llamar a Google
-            var response = restTemplate.getForObject(
+            Map<String, Object> response = restTemplate.getForObject(
                     url,
                     Map.class
             );
