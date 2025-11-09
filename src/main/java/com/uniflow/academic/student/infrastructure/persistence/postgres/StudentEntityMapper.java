@@ -16,9 +16,7 @@ public class StudentEntityMapper {
                 .email(student.getEmail())
                 .provider(student.getProvider())
                 .providerId(student.getProviderId())
-                .studentId(student.getStudentId())
                 .avatar(student.getAvatar())
-                .accessToken(student.getAccessToken())
                 .createdAt(student.getCreatedAt())
                 .updatedAt(student.getUpdatedAt())
                 .build();
@@ -34,9 +32,7 @@ public class StudentEntityMapper {
                 .email(entity.getEmail())
                 .provider(entity.getProvider())
                 .providerId(entity.getProviderId())
-                .studentId(entity.getStudentId())
                 .avatar(entity.getAvatar())
-                .accessToken(entity.getAccessToken())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

@@ -50,6 +50,10 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/students/{studentId}"
                         ).permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/students/google/{googleId}"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
 

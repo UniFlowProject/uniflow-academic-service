@@ -70,7 +70,7 @@ public class GoogleTokenAuthenticationFilter extends OncePerRequestFilter {
             }
 
             // 6. Extrae Google ID único (sub)
-            String googleId = (String) tokenInfo.get("sub");
+            String googleId = (String) tokenInfo.get("id");
             String email = (String) tokenInfo.get("email");
 
             if (googleId == null || googleId.isBlank()) {
@@ -117,7 +117,7 @@ public class GoogleTokenAuthenticationFilter extends OncePerRequestFilter {
         return new DefaultOAuth2User(
                 List.of(),  // Sin authorities por ahora
                 attributes,
-                "sub"       // Usar Google ID como atributo principal
+                "id"       // Usar Google ID como atributo principal
         );
     }
 

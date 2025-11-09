@@ -15,8 +15,33 @@ import java.util.Map;
 @Component
 public class GoogleTokenValidator {
 
-    private static final String GOOGLE_TOKENINFO_URL =
-            "https://oauth2.googleapis.com/tokeninfo";
+    /**
+     * {
+     *   "azp": "#.apps.googleusercontent.com",
+     *   "aud": "#.apps.googleusercontent.com",
+     *   "sub": "1064............",
+     *   "scope": "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid",
+     *   "exp": "1762645853",
+     *   "expires_in": "104",
+     *   "email": "v.............1@gmail.com",
+     *   "email_verified": "true",
+     *   "access_type": "online"
+     * }
+     */
+    private static final String GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo";
+
+    /**
+     * {
+     *   "id": "1064......",
+     *   "email": "v............1@gmail.com",
+     *   "verified_email": true,
+     *   "name": "Jon Doe",
+     *   "given_name": "Jon",
+     *   "family_name": "Doe",
+     *   "picture": "https://lh3.googleusercontent.com/a/#######################"
+     * }
+     */
+    private static final String GOOGLE_TOKENINFO_PROFILE_URL = "https://www.googleapis.com/oauth2/v1/userinfo";
 
     @Autowired
     private RestTemplate restTemplate;
@@ -33,7 +58,7 @@ public class GoogleTokenValidator {
                     accessToken.substring(0, 20) + "...");
 
             // Construir URL con token
-            String url = GOOGLE_TOKENINFO_URL + "?access_token=" + accessToken;
+            String url = GOOGLE_TOKENINFO_PROFILE_URL + "?access_token=" + accessToken;
 
             // Llamar a Google
             Map<String, Object> response = restTemplate.getForObject(
@@ -42,8 +67,7 @@ public class GoogleTokenValidator {
             );
 
             assert response != null;
-            log.debug("Token validated successfully. User: {}",
-                    response.get("email"));
+            log.debug("Token validated successfully. User: {}", response.get("email"));
 
             return response;
 

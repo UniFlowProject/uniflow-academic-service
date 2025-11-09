@@ -23,7 +23,6 @@ import java.time.LocalDateTime;
         schema = "academic",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_student_provider", columnNames = {"provider", "provider_id"}),
-                @UniqueConstraint(name = "uk_student_student_id", columnNames = {"student_id"})
         },
         indexes = {
                 @Index(name = "idx_student_email", columnList = "email")
@@ -34,7 +33,6 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString(exclude = "accessToken")
 public class StudentEntity {
 
     @Id
@@ -53,14 +51,8 @@ public class StudentEntity {
     @Column(name = "provider_id", nullable = false)
     private String providerId;
 
-    @Column(name = "student_id")
-    private String studentId;
-
     @Column(name = "avatar")
     private String avatar;
-
-    @Column(name = "access_token", columnDefinition = "TEXT", nullable = false)
-    private String accessToken;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -32,7 +32,7 @@ public class RegisterStudentService implements RegisterStudentCommand {
             throw new InvalidStudentException("Invalid Google access token");
         }
 
-        String providerId = Optional.ofNullable(tokenInfo.get("sub"))
+        String providerId = Optional.ofNullable(tokenInfo.get("id"))
                 .map(Object::toString)
                 .filter(value -> !value.isBlank())
                 .orElseThrow(() -> new InvalidStudentException("Google token missing subject identifier"));
