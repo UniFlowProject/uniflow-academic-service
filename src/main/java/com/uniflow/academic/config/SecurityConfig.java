@@ -4,6 +4,7 @@ import com.uniflow.academic.shared.infrastructure.security.GoogleTokenAuthentica
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -23,10 +24,10 @@ import java.util.Arrays;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final GoogleTokenAuthenticationFilter googleTokenFilter;
+//    private final GoogleTokenAuthenticationFilter googleTokenFilter;
 
     public SecurityConfig(GoogleTokenAuthenticationFilter googleTokenFilter) {
-        this.googleTokenFilter = googleTokenFilter;
+//        this.googleTokenFilter = googleTokenFilter;
     }
 
     @Bean
@@ -39,20 +40,33 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/",
                                 "/health",
+                                "/students/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/webjars/**"
+                        ).permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/students/{studentId}"
+                        ).permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/students/google/{googleId}"
+                        ).permitAll()
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/auth/google/callback"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
 
                 // Agregar filtro de validación de token de Google
                 // Ejecuta ANTES que UsernamePasswordAuthenticationFilter
-                .addFilterBefore(
-                        googleTokenFilter,
-                        UsernamePasswordAuthenticationFilter.class
-                )
+//                .addFilterBefore(
+//                        googleTokenFilter,
+//                        UsernamePasswordAuthenticationFilter.class
+//                )
 
                 // Logout
                 .logout(logout -> logout
