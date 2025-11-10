@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
-@RestControllerAdvice(basePackages = "com.uniflow.academic.student.infrastructure.web")
+@RestControllerAdvice(basePackages = {"com.uniflow.academic.student", "com.uniflow.academic.auth"})
 public class StudentExceptionHandler {
 
     @ExceptionHandler(StudentNotFoundException.class)

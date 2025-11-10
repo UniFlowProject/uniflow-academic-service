@@ -20,7 +20,7 @@ import java.util.Map;
  * Global exception handler para Period endpoints
  */
 @Slf4j
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = "com.uniflow.academic.period")
 public class PeriodExceptionHandler {
 
     /**

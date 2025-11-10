@@ -19,7 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = "com.uniflow.academic.subject")
 public class SubjectExceptionHandler {
 
     @ExceptionHandler(SubjectNotFoundException.class)
