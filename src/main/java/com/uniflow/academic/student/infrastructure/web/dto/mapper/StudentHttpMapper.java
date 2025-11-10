@@ -13,6 +13,10 @@ public class StudentHttpMapper {
         return new RegisterStudentCommand.RegisterStudentRequest(request.getAccessToken());
     }
 
+    public RegisterStudentCommand.RegisterStudentRequest toRegisterCommand(Student student) {
+        return new RegisterStudentCommand.RegisterStudentRequest(student.getAccessToken());
+    }
+
     public StudentHttpResponse toHttpResponse(Student student) {
         if (student == null) {
             return null;

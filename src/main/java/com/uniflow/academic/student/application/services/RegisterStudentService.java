@@ -25,6 +25,7 @@ public class RegisterStudentService implements RegisterStudentCommand {
     private final StudentRepository studentRepository;
 
     @Override
+    @Transactional
     public Student register(RegisterStudentRequest request) {
         log.info("Registering student with Google token");
         Map<String, Object> tokenInfo = googleTokenValidator.validateToken(request.accessToken());

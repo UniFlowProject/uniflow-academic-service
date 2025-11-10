@@ -24,10 +24,10 @@ import java.util.Arrays;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final GoogleTokenAuthenticationFilter googleTokenFilter;
+//    private final GoogleTokenAuthenticationFilter googleTokenFilter;
 
     public SecurityConfig(GoogleTokenAuthenticationFilter googleTokenFilter) {
-        this.googleTokenFilter = googleTokenFilter;
+//        this.googleTokenFilter = googleTokenFilter;
     }
 
     @Bean
@@ -54,15 +54,19 @@ public class SecurityConfig {
                                 HttpMethod.GET,
                                 "/students/google/{googleId}"
                         ).permitAll()
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/auth/google/callback"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
 
                 // Agregar filtro de validación de token de Google
                 // Ejecuta ANTES que UsernamePasswordAuthenticationFilter
-                .addFilterBefore(
-                        googleTokenFilter,
-                        UsernamePasswordAuthenticationFilter.class
-                )
+//                .addFilterBefore(
+//                        googleTokenFilter,
+//                        UsernamePasswordAuthenticationFilter.class
+//                )
 
                 // Logout
                 .logout(logout -> logout

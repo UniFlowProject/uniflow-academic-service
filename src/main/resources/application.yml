@@ -32,12 +32,18 @@ spring:
           google:
             client-id: ${GOOGLE_CLIENT_ID}
             client-secret: ${GOOGLE_CLIENT_SECRET}
-            redirect-uri: "{baseUrl}/login/oauth2/code/google"
-            scope:
-              - openid
-              - email
-              - profile
+            redirect-uri: "${BASE_URL}/api/academic/auth/google/callback"
+            scope: openid,email,profile
+            authorization-grant-type: authorization_code
+        provider:
+          google:
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://oauth2.googleapis.com/tokeninfo
+            user-name-attribute: sub
 
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION_MS:604800000} # 1 week in milliseconds
   web:
     cors:
       allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
@@ -67,5 +73,7 @@ app:
   name: ${APP_NAME:UniFlow}
   version: ${APP_VERSION:1.0.0}
   jwt:
-    secret: ${JWT_SECRET}
-    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    secret-key: ${JWT_SECRET}
+    expiration: 604800000
+    issuer: ${APP_ISSUER_URI}  # https://uniflow.azurewebsites.net
+    audience: uniflow-api

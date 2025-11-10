@@ -5,4 +5,6 @@ import com.uniflow.academic.student.domain.Student;
 public interface GetStudentByProviderIdQuery {
 
     Student getByProviderId(String providerId);
+
+    Student execute(String providerId);
 }
