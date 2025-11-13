@@ -3,6 +3,7 @@ package com.uniflow.academic.student.infrastructure.web;
 import com.uniflow.academic.student.application.ports.in.GetStudentByIdQuery;
 import com.uniflow.academic.student.application.ports.in.GetStudentByProviderIdQuery;
 import com.uniflow.academic.student.application.ports.in.RegisterStudentCommand;
+import com.uniflow.academic.student.domain.Student;
 import com.uniflow.academic.student.infrastructure.web.dto.RegisterStudentHttpRequest;
 import com.uniflow.academic.student.infrastructure.web.dto.StudentHttpResponse;
 import com.uniflow.academic.student.infrastructure.web.dto.mapper.StudentHttpMapper;
@@ -17,6 +18,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
@@ -83,6 +86,27 @@ public class StudentController {
     ) {
         log.info("GET /students/google/{} - retrieve student by Google ID", googleId);
         var student = getStudentByProviderIdQuery.getByProviderId(googleId);
+        return ResponseEntity.ok(mapper.toHttpResponse(student));
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "Get token info")
+    @ApiResponses()
+    public ResponseEntity<StudentHttpResponse> getTokenInfo() {
+        log.info("GET /students/me");
+        log.info("Authorization header: {}", SecurityContextHolder.getContext().getAuthentication().getClass());
+        Authentication authentication =  SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            log.warn("GET /students/me - No authenticated user found in security context.");
+            return ResponseEntity.status(401).build();
+        }
+
+        Object principal = authentication.getPrincipal(); // It supose to be the Student ID in database (String)
+
+        System.out.println("Principal: " + principal);
+
+        var student = getStudentByIdQuery.getById((String) principal);
         return ResponseEntity.ok(mapper.toHttpResponse(student));
     }
 }

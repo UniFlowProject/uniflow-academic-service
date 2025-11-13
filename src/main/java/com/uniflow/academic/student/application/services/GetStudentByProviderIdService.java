@@ -18,16 +18,16 @@ public class GetStudentByProviderIdService implements GetStudentByProviderIdQuer
     private final StudentRepository studentRepository;
 
     @Override
-    public Student getByProviderId(String providerId) {
-        log.info("Retrieving student by providerId {}", providerId);
-        return studentRepository.findByProvider("google", providerId)
+    public Student getByProviderId(String id) {
+        log.info("Retrieving student by Id (sub) {}", id);
+        return studentRepository.findById(id)
                 .orElseThrow(() -> new StudentNotFoundException("Student not found"));
     }
 
     @Override
     public Student execute(String providerId) {
         log.info("Retrieving student by providerId {}", providerId);
-        return studentRepository.findByProvider("google", providerId)
+        return studentRepository.findById(providerId)
                 .orElseThrow(() -> new StudentNotFoundException("Student not found"));
     }
 }

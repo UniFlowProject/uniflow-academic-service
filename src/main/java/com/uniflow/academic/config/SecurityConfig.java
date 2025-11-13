@@ -1,6 +1,6 @@
 package com.uniflow.academic.config;
 
-import com.uniflow.academic.shared.infrastructure.security.GoogleTokenAuthenticationFilter;
+import com.uniflow.academic.shared.infrastructure.security.JwtAuthenticationFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,10 +24,10 @@ import java.util.Arrays;
 @EnableWebSecurity
 public class SecurityConfig {
 
-//    private final GoogleTokenAuthenticationFilter googleTokenFilter;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    public SecurityConfig(GoogleTokenAuthenticationFilter googleTokenFilter) {
-//        this.googleTokenFilter = googleTokenFilter;
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
     @Bean
@@ -40,7 +40,6 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/",
                                 "/health",
-                                "/students/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
@@ -58,15 +57,19 @@ public class SecurityConfig {
                                 HttpMethod.POST,
                                 "/auth/google/callback"
                         ).permitAll()
+                        .requestMatchers(
+                                HttpMethod.OPTIONS,
+                                "/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
 
                 // Agregar filtro de validación de token de Google
                 // Ejecuta ANTES que UsernamePasswordAuthenticationFilter
-//                .addFilterBefore(
-//                        googleTokenFilter,
-//                        UsernamePasswordAuthenticationFilter.class
-//                )
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
+                )
 
                 // Logout
                 .logout(logout -> logout

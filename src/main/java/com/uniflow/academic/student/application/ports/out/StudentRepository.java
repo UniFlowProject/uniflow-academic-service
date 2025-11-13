@@ -10,7 +10,7 @@ public interface StudentRepository {
 
     Student update(Student student);
 
-    Optional<Student> findByProvider(String provider, String providerId);
+//    Optional<Student> findByProvider(String provider, String providerId);
 
     Optional<Student> findById(String studentId);
 }

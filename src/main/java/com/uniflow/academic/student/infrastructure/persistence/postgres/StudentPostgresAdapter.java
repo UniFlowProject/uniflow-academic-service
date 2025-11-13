@@ -32,11 +32,11 @@ public class StudentPostgresAdapter implements StudentRepository {
         return mapper.toDomain(updated);
     }
 
-    @Override
-    public Optional<Student> findByProvider(String provider, String providerId) {
-        return jpaRepository.findByProviderAndProviderId(provider, providerId)
-                .map(mapper::toDomain);
-    }
+//    @Override
+//    public Optional<Student> findByProvider(String provider, String providerId) {
+//        return jpaRepository.findByProviderAndProviderId(provider, providerId)
+//                .map(mapper::toDomain);
+//    }
 
     @Override
     public Optional<Student> findById(String studentId) {

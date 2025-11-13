@@ -21,10 +21,10 @@ public class Student {
     private String id;
     private String name;
     private String email;
-    private String provider;
-    private String providerId;
-    private String studentId;
     private String avatar;
+//    private String provider;
+//    private String providerId;
+//    private String studentId;
     private String accessToken;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -36,22 +36,22 @@ public class Student {
         if (email == null || email.isBlank()) {
             throw new InvalidStudentException("Student email is required");
         }
-        if (provider == null || provider.isBlank()) {
-            throw new InvalidStudentException("Authentication provider is required");
-        }
-        if (providerId == null || providerId.isBlank()) {
-            throw new InvalidStudentException("Provider identifier is required");
-        }
-        if (accessToken == null || accessToken.isBlank()) {
-            throw new InvalidStudentException("OAuth access token is required");
-        }
+//        if (provider == null || provider.isBlank()) {
+//            throw new InvalidStudentException("Authentication provider is required");
+//        }
+//        if (providerId == null || providerId.isBlank()) {
+//            throw new InvalidStudentException("Provider identifier is required");
+//        }
+//        if (accessToken == null || accessToken.isBlank()) {
+//            throw new InvalidStudentException("OAuth access token is required");
+//        }
     }
 
     /**
      * Factory method that creates a new student from OAuth provider data.
      */
     public static Student createFromProvider(
-            String provider,
+//            String provider,
             String providerId,
             String name,
             String email,
@@ -59,11 +59,11 @@ public class Student {
             String accessToken
     ) {
         Student student = Student.builder()
-                .id(UUID.randomUUID().toString())
+                .id(providerId)
                 .name(name)
                 .email(email)
-                .provider(provider)
-                .providerId(providerId)
+//                .provider(provider)
+//                .providerId(providerId)
                 .avatar(avatar)
                 .accessToken(accessToken)
                 .createdAt(LocalDateTime.now())
@@ -87,18 +87,6 @@ public class Student {
                 .email(email)
                 .avatar(avatar)
                 .accessToken(accessToken)
-                .updatedAt(LocalDateTime.now())
-                .build();
-        updated.validate();
-        return updated;
-    }
-
-    /**
-     * Assigns a university student identifier.
-     */
-    public Student assignStudentId(String studentId) {
-        Student updated = this.toBuilder()
-                .studentId(studentId)
                 .updatedAt(LocalDateTime.now())
                 .build();
         updated.validate();

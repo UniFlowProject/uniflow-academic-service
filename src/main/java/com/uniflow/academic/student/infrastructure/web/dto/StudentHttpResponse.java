@@ -19,14 +19,14 @@ public class StudentHttpResponse {
     @Schema(description = "Institutional email", example = "juan.perez@estudiantes.tec.ac.cr")
     String email;
 
-    @Schema(description = "Authentication provider", example = "google")
-    String provider;
-
-    @Schema(description = "Provider identifier", example = "google_123456789")
-    String providerId;
-
-    @Schema(description = "University student ID", example = "2021123456")
-    String studentId;
+//    @Schema(description = "Authentication provider", example = "google")
+//    String provider;
+//
+//    @Schema(description = "Provider identifier", example = "google_123456789")
+//    String providerId;
+//
+//    @Schema(description = "University student ID", example = "2021123456")
+//    String studentId;
 
     @Schema(description = "Avatar image URL")
     String avatar;

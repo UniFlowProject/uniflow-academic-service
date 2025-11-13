@@ -51,26 +51,4 @@ public class AuthController {
             throw ex;
         }
     }
-
-//    @GetMapping("/google/callback")
-//    @Operation(summary = "Authenticate with Google")
-//    @ApiResponses({
-//            @ApiResponse(
-//                    responseCode = "200",
-//                    description = "Authentication successful",
-//                    content = @Content(schema = @Schema(implementation = AuthResponse.class))
-//            ),
-//            @ApiResponse(responseCode = "400", description = "Invalid request"),
-//            @ApiResponse(responseCode = "401", description = "Authentication failed")
-//    })
-//    public ResponseEntity<AuthResponse> authenticateWithGoogle2(
-//            @RequestParam("code") String code
-//    ) {
-//        log.info("POST /auth/google - Google authentication request");
-//        AuthResponse response = authenticateWithGoogleUseCase.execute(
-//                code,
-//                null
-//        );
-//        return ResponseEntity.ok(response);
-//    }
 }

@@ -45,12 +45,12 @@ public class GoogleAuthAdapter implements GoogleAuthPort {
 
         // Map to student domain object
         return Student.builder()
-                .id(UUID.randomUUID().toString())
+                .id((String) userInfo.get("sub"))
                 .name((String) userInfo.get("name"))
                 .email((String) userInfo.get("email"))
-                .provider("google")
-                .providerId((String) userInfo.get("sub"))
-                .studentId((String) userInfo.get("email"))
+//                .provider("google")
+//                .providerId((String) userInfo.get("sub"))
+//                .studentId((String) userInfo.get("email"))
                 .avatar((String) userInfo.get("picture"))
                 .accessToken(accessToken)
                 .createdAt(LocalDateTime.now())
