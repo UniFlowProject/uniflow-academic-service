@@ -29,7 +29,7 @@ public class JwtTokenAdapter implements JwtTokenPort {
     }
 
     @Override
-    public String generateToken(String subject, String name, String email) {
+    public String generateToken(String subject, String name, String email, String picture) {
         System.out.println("Generating token...");
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
@@ -37,6 +37,7 @@ public class JwtTokenAdapter implements JwtTokenPort {
         Map<String, Object> claims = new HashMap<>();
         claims.put("name", name);
         claims.put("email", email);
+        claims.put("picture", picture);
 
         System.out.println("Claims: " + claims);
 

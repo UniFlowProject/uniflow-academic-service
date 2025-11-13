@@ -45,7 +45,8 @@ public class AuthenticationService implements AuthenticateWithGoogleUseCase {
         String token = jwtTokenPort.generateToken(
                 student.getId(),
                 student.getName(),
-                student.getEmail()
+                student.getEmail(),
+                student.getAvatar()
         );
 
         System.out.println("Token: " + token);
