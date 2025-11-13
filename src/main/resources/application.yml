@@ -3,7 +3,7 @@ spring:
     name: ${APP_NAME:UniFlow Academic Service}
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:uniflow_db}
+    url: jdbc:sqlserver://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:uniflow_db}
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:password}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
