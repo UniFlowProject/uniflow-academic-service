@@ -33,7 +33,7 @@ public class RegisterStudentService implements RegisterStudentCommand {
             throw new InvalidStudentException("Invalid Google access token");
         }
 
-        String providerId = Optional.ofNullable(tokenInfo.get("id"))
+        String id = Optional.ofNullable(tokenInfo.get("id"))
                 .map(Object::toString)
                 .filter(value -> !value.isBlank())
                 .orElseThrow(() -> new InvalidStudentException("Google token missing subject identifier"));
@@ -51,13 +51,15 @@ public class RegisterStudentService implements RegisterStudentCommand {
                 .map(Object::toString)
                 .orElse(null);
 
-        Student student = studentRepository.findByProvider(GOOGLE_PROVIDER, providerId)
+//        Student student = studentRepository.findByProvider(GOOGLE_PROVIDER, providerId)
+//                .map(existing -> existing.refreshFromProvider(name, email, avatar, request.accessToken()))
+        Student student = studentRepository.findById(id)
                 .map(existing -> existing.refreshFromProvider(name, email, avatar, request.accessToken()))
                 .map(studentRepository::update)
                 .orElseGet(() -> studentRepository.save(
                         Student.createFromProvider(
-                                GOOGLE_PROVIDER,
-                                providerId,
+//                                GOOGLE_PROVIDER,
+                                id,
                                 name,
                                 email,
                                 avatar,

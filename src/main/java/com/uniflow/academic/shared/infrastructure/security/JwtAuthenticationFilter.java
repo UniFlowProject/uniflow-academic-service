@@ -17,22 +17,21 @@ import java.util.List;
 
 @Slf4j
 @Component
-public class GoogleTokenAuthenticationFilter extends OncePerRequestFilter {
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtProvider jwtProvider;
 
-    // ✅ RUTAS QUE NO REQUIEREN AUTENTICACIÓN
+    // RUTAS QUE NO REQUIEREN AUTENTICACIÓN
     private static final List<String> EXCLUDED_PATHS = Arrays.asList(
             "/auth/google/callback",
             "/auth/refresh",
             "/health",
-            "/students/",
             "/swagger-ui",
             "/v3/api-docs",
             "/webjars/"
     );
 
-    public GoogleTokenAuthenticationFilter(JwtProvider jwtProvider) {
+    public JwtAuthenticationFilter(JwtProvider jwtProvider) {
         this.jwtProvider = jwtProvider;
     }
 
@@ -44,54 +43,48 @@ public class GoogleTokenAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String requestPath = request.getRequestURI();
-        log.debug("Processing request: {}", requestPath);
-
-        // ✅ Extraer token del header
         String token = extractTokenFromHeader(request);
 
-        if (token != null && isValidToken(token)) {
+        log.debug("Extracted token: {}", token);
+
+        if (token != null) {
             try {
-                String userId = jwtProvider.getUserIdFromToken(token);
+                if (jwtProvider.validateToken(token)) {
+                    String userId = jwtProvider.getUserIdFromToken(token);
 
-                // Crear autenticación
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userId, null, new ArrayList<>()
-                        );
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                    userId,
+                            null,
+                            new ArrayList<>()
+                    );
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-                log.debug("✅ JWT validated for user: {}", userId);
-
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    log.debug("✅ JWT validated for user: {}", userId);
+                } else {
+                    log.warn("❌ Invalid JWT token");
+                }
             } catch (Exception e) {
-                log.warn("⚠️ Failed to validate JWT token", e);
+                log.warn("⚠️ Failed to validate JWT token: {}", e.getMessage());
             }
+        } else {
+            log.debug("No token found in request: {}", requestPath);
         }
 
         filterChain.doFilter(request, response);
     }
 
-    // ✅ SKIP filter para rutas no protegidas
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request)
-            throws ServletException {
-
+    protected boolean shouldNotFilter(HttpServletRequest request) {
         String requestPath = request.getRequestURI();
-
-        boolean shouldSkip = EXCLUDED_PATHS.stream()
-                .anyMatch(requestPath::contains);
-
-        if (shouldSkip) {
-            log.debug("Skipping authentication filter for: {}", requestPath);
-        }
-
-        return shouldSkip;
+        return EXCLUDED_PATHS.stream().anyMatch(requestPath::startsWith);
     }
 
     private String extractTokenFromHeader(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
 
-        if (authHeader == null || authHeader.isEmpty()) {
-            log.debug("No Authorization header found");
+        log.debug("Authorization header received: {}", authHeader);
+
+        if (authHeader == null || authHeader.isBlank()) {
             return null;
         }
 
@@ -101,14 +94,5 @@ public class GoogleTokenAuthenticationFilter extends OncePerRequestFilter {
         }
 
         return authHeader.substring("Bearer ".length());
-    }
-
-    private boolean isValidToken(String token) {
-        try {
-            return jwtProvider.validateToken(token);
-        } catch (Exception e) {
-            log.debug("Token validation failed: {}", e.getMessage());
-            return false;
-        }
     }
 }

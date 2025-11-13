@@ -45,11 +45,11 @@ public class StudentEntity {
     @Column(name = "email", nullable = false)
     private String email;
 
-    @Column(name = "provider", nullable = false)
-    private String provider;
-
-    @Column(name = "provider_id", nullable = false)
-    private String providerId;
+//    @Column(name = "provider", nullable = false)
+//    private String provider;
+//
+//    @Column(name = "provider_id", nullable = false)
+//    private String providerId;
 
     @Column(name = "avatar")
     private String avatar;

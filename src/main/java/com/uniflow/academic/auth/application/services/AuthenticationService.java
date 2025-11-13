@@ -4,6 +4,7 @@ import com.uniflow.academic.auth.application.ports.in.AuthenticateWithGoogleUseC
 import com.uniflow.academic.auth.application.ports.out.GoogleAuthPort;
 import com.uniflow.academic.auth.application.ports.out.JwtTokenPort;
 import com.uniflow.academic.auth.infrastructure.web.dto.AuthResponse;
+import com.uniflow.academic.student.application.ports.in.GetStudentByIdQuery;
 import com.uniflow.academic.student.application.ports.in.RegisterStudentCommand;
 import com.uniflow.academic.student.application.ports.in.GetStudentByProviderIdQuery;
 import com.uniflow.academic.student.domain.Student;
@@ -19,7 +20,8 @@ public class AuthenticationService implements AuthenticateWithGoogleUseCase {
 
     private final GoogleAuthPort googleAuthPort;
     private final JwtTokenPort jwtTokenPort;
-    private final GetStudentByProviderIdQuery getStudentByProviderIdQuery;
+//    private final GetStudentByProviderIdQuery getStudentByProviderIdQuery;
+    private final GetStudentByIdQuery getStudentByIdQuery;
     private final RegisterStudentCommand createStudentCommand;
     private final StudentHttpMapper  studentHttpMapper;
 
@@ -33,7 +35,8 @@ public class AuthenticationService implements AuthenticateWithGoogleUseCase {
         // Find or create student
         Student student;
         try {
-            student = getStudentByProviderIdQuery.execute(googleUser.getProviderId()); // .orElseGet(() -> createStudentCommand.execute(googleUser));
+//            student = getStudentByProviderIdQuery.execute(googleUser.getId()); // .orElseGet(() -> createStudentCommand.execute(googleUser));
+            student = getStudentByIdQuery.getById(googleUser.getId());
         } catch (StudentNotFoundException e) {
             student = createStudentCommand.register(studentHttpMapper.toRegisterCommand(googleUser));
         }
