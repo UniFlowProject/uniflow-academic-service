@@ -43,7 +43,9 @@ public class JwtTokenAdapter implements JwtTokenPort {
         return Jwts.builder()
                 .claims(claims)
                 .subject(subject)
-                .signWith(getSigningKey())  // ← USAR HS256
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
@@ -51,8 +53,7 @@ public class JwtTokenAdapter implements JwtTokenPort {
     public boolean validateToken(String token) {
         try {
             Jwts.parser()
-//                    .(getSigningKey())
-                    .setSigningKey(getSigningKey())
+                    .verifyWith(getSigningKey())
                     .build()
                     .parseSignedClaims(token);
 //                    .parseClaimsJws(token);
@@ -65,10 +66,9 @@ public class JwtTokenAdapter implements JwtTokenPort {
     @Override
     public String getSubjectFromToken(String token) {
         Claims claims = Jwts.parser()
-                .setSigningKey(getSigningKey())
+                .verifyWith(getSigningKey())  // ← API moderna
                 .build()
                 .parseSignedClaims(token)
-//                .getBody();
                 .getPayload();
 
         return claims.getSubject();
