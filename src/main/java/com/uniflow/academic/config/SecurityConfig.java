@@ -95,9 +95,17 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(Arrays.asList(
+                // Dev
                 "http://localhost:3000",
                 "http://localhost:8080",
-                "http://127.0.0.1:8080"
+                "http://127.0.0.1:8080",
+
+                // APIM
+                "https://uniflowapi.azure-api.net",
+
+                // Frontend
+                "https://uniflow.fabian-vargas.com",
+                "https://gentle-flower-023e1cd0f.1.azurestaticapps.net"
         ));
 
         configuration.setAllowedMethods(Arrays.asList(
