@@ -124,9 +124,14 @@
         </dependency>
 
         <!-- Flyway PostgreSQL -->
+<!--        <dependency>-->
+<!--            <groupId>org.flywaydb</groupId>-->
+<!--            <artifactId>flyway-database-postgresql</artifactId>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-database-postgresql</artifactId>
+            <artifactId>flyway-sqlserver</artifactId>
+            <!-- Spring Boot maneja la versión automáticamente -->
         </dependency>
 	</dependencies>
 	<dependencyManagement>
