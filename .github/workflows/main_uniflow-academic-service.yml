@@ -12,7 +12,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment: Production
     permissions:
       contents: read #This is required for actions/checkout
 
@@ -53,7 +52,6 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    environment: Production
     needs: build
     permissions:
       id-token: write #This is required for requesting the JWT
