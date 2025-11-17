@@ -118,21 +118,21 @@ public class Subject {
      * Update the subject with the provided information.
      */
     public Subject patch(
-            Optional<String> name,
-            Optional<String> code,
-            Optional<String> professor,
-            Optional<Integer> credits,
-            Optional<String> color,
-            Optional<String> description
+            String name,
+            String code,
+            String professor,
+            Integer credits,
+            String color,
+            String description
     ) {
         Subject.SubjectBuilder builder = this.toBuilder();
 
-        if (name.isPresent()) builder.name(String.valueOf(name));
-        if (code.isPresent()) builder.code(String.valueOf(code));
-        if (professor.isPresent()) builder.professor(String.valueOf(professor));
-        if (credits.isPresent()) builder.credits(Integer.valueOf(String.valueOf(credits)));
-        if (color.isPresent()) builder.color(String.valueOf(color));
-        if (description.isPresent()) builder.description(String.valueOf(description));
+        if (name != null) builder.name(name);
+        if (code != null) builder.code(code);
+        if (professor != null) builder.professor(professor);
+        if (credits != null) builder.credits(credits);
+        if (color != null) builder.color(color);
+        if (description != null) builder.description(description);
 
         Subject updatedSubject = builder
                 .updatedAt(LocalDateTime.now())

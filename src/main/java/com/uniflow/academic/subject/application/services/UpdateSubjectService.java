@@ -28,8 +28,8 @@ public class UpdateSubjectService implements UpdateSubjectCommand {
         Subject current = subjectRepository.findById(subjectId, studentId)
                 .orElseThrow(() -> new SubjectNotFoundException("Subject not found"));
 
-        if (request.code().isPresent()) {
-            if(subjectRepository.existsByCode(String.valueOf(request.code()), current.getPeriodId(), studentId, subjectId)) {
+        if (request.code() != null) {
+            if(subjectRepository.existsByCode(request.code(), current.getPeriodId(), studentId, subjectId)) {
                 throw new SubjectCodeAlreadyExistsException("Subject code already exists in this period");
             }
         }

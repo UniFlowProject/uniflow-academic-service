@@ -10,12 +10,12 @@ public interface UpdateSubjectCommand {
     Subject execute(String subjectId, UpdateSubjectRequest request, String studentId);
 
     record UpdateSubjectRequest(
-            Optional<String> name,
-            Optional<String> code,
-            Optional<String> professor,
-            Optional<Integer> credits,
-            Optional<String> color,
-            Optional<String> description
+            String name,
+            String code,
+            String professor,
+            Integer credits,
+            String color,
+            String description
     ) {
         public UpdateSubjectRequest {
 
