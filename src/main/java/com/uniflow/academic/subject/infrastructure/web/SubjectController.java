@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
 public class SubjectController {
 
     private final CreateSubjectCommand createSubjectCommand;
+    private final ReplaceSubjectCommand replaceSubjectCommand;
     private final UpdateSubjectCommand updateSubjectCommand;
     private final DeleteSubjectCommand deleteSubjectCommand;
     private final GetSubjectsQuery getSubjectsQuery;
@@ -110,6 +111,30 @@ public class SubjectController {
     }
 
     @PutMapping("/{subjectId}")
+    @Operation(summary = "Replace subject information")
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Subject replaced successfully",
+                    content = @Content(schema = @Schema(implementation = SubjectHttpResponse.class))
+            ),
+            @ApiResponse(responseCode = "400", description = "Invalid subject data"),
+            @ApiResponse(responseCode = "404", description = "Subject not found"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
+    public ResponseEntity<SubjectHttpResponse> replaceSubject(
+            @PathVariable String subjectId,
+            @Valid @RequestBody ReplaceSubjectHttpRequest request,
+            Authentication authentication
+    ) {
+        log.info("PUT /subjects/{} - update subject", subjectId);
+        String studentId = authentication.getName();
+        var commandRequest = mapper.toReplaceCommandRequest(request);
+        var subject = replaceSubjectCommand.execute(subjectId, commandRequest, studentId);
+        return ResponseEntity.ok(mapper.toHttpResponse(subject));
+    }
+
+    @PatchMapping("/{subjectId}")
     @Operation(summary = "Update subject information")
     @ApiResponses({
             @ApiResponse(
@@ -126,7 +151,7 @@ public class SubjectController {
             @Valid @RequestBody UpdateSubjectHttpRequest request,
             Authentication authentication
     ) {
-        log.info("PUT /subjects/{} - update subject", subjectId);
+        log.info("PATCH /subjects/{} - update subject", subjectId);
         String studentId = authentication.getName();
         var commandRequest = mapper.toUpdateCommandRequest(request);
         var subject = updateSubjectCommand.execute(subjectId, commandRequest, studentId);

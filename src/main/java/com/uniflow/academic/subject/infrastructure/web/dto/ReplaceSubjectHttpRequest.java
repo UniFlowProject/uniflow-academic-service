@@ -8,27 +8,33 @@ import lombok.Builder;
 import lombok.Value;
 
 import java.util.List;
-import java.util.Optional;
 
 @Value
 @Builder
-public class UpdateSubjectHttpRequest {
+public class ReplaceSubjectHttpRequest {
 
     @Schema(description = "Subject name", example = "Diseño de Software")
-    Optional<String> name;
+    @NotBlank
+    String name;
 
     @Schema(description = "Subject code", example = "IC-5401")
-    Optional<String> code;
+    @NotBlank
+    String code;
 
     @Schema(description = "Professor name", example = "Marcos Rodríguez")
-    Optional<String> professor;
+    String professor;
 
     @Schema(description = "Subject credits", example = "3")
-    Optional<Integer> credits;
+    @NotNull
+    Integer credits;
 
     @Schema(description = "Color in HEX", example = "#3b82f6")
-    Optional<String> color;
+    String color;
 
     @Schema(description = "Subject description")
-    Optional<String> description;
+    String description;
+
+    @Schema(description = "Schedule entries", example = "['Lunes 8:00-9:50']")
+    @Size(max = 10)
+    List<String> schedule;
 }

@@ -1,6 +1,7 @@
 package com.uniflow.academic.subject.infrastructure.web.dto.mapper;
 
 import com.uniflow.academic.subject.application.ports.in.CreateSubjectCommand;
+import com.uniflow.academic.subject.application.ports.in.ReplaceSubjectCommand;
 import com.uniflow.academic.subject.application.ports.in.UpdateSubjectCommand;
 import com.uniflow.academic.subject.application.ports.out.dto.SubjectStatisticsResponse;
 import com.uniflow.academic.subject.application.ports.out.dto.ValidateSubjectCodeResponse;
@@ -27,8 +28,8 @@ public class SubjectHttpMapper {
         );
     }
 
-    public UpdateSubjectCommand.UpdateSubjectRequest toUpdateCommandRequest(UpdateSubjectHttpRequest request) {
-        return new UpdateSubjectCommand.UpdateSubjectRequest(
+    public ReplaceSubjectCommand.ReplaceSubjectRequest toReplaceCommandRequest(ReplaceSubjectHttpRequest request) {
+        return new ReplaceSubjectCommand.ReplaceSubjectRequest(
                 request.getName(),
                 request.getCode(),
                 request.getProfessor(),
@@ -36,6 +37,17 @@ public class SubjectHttpMapper {
                 request.getColor(),
                 request.getDescription(),
                 request.getSchedule()
+        );
+    }
+
+    public UpdateSubjectCommand.UpdateSubjectRequest toUpdateCommandRequest(UpdateSubjectHttpRequest request) {
+        return new UpdateSubjectCommand.UpdateSubjectRequest(
+                request.getName(),
+                request.getCode(),
+                request.getProfessor(),
+                request.getCredits(),
+                request.getColor(),
+                request.getDescription()
         );
     }
 

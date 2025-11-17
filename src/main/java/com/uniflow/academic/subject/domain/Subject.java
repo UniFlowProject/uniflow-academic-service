@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -106,6 +107,34 @@ public class Subject {
                 .color(color)
                 .description(description)
                 .schedule(schedule)
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        updatedSubject.validate();
+        return updatedSubject;
+    }
+
+    /**
+     * Update the subject with the provided information.
+     */
+    public Subject patch(
+            Optional<String> name,
+            Optional<String> code,
+            Optional<String> professor,
+            Optional<Integer> credits,
+            Optional<String> color,
+            Optional<String> description
+    ) {
+        Subject.SubjectBuilder builder = this.toBuilder();
+
+        if (name.isPresent()) builder.name(String.valueOf(name));
+        if (code.isPresent()) builder.code(String.valueOf(code));
+        if (professor.isPresent()) builder.professor(String.valueOf(professor));
+        if (credits.isPresent()) builder.credits(Integer.valueOf(String.valueOf(credits)));
+        if (color.isPresent()) builder.color(String.valueOf(color));
+        if (description.isPresent()) builder.description(String.valueOf(description));
+
+        Subject updatedSubject = builder
                 .updatedAt(LocalDateTime.now())
                 .build();
 

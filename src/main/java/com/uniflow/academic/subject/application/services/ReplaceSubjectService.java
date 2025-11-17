@@ -1,7 +1,6 @@
 package com.uniflow.academic.subject.application.services;
 
 import com.uniflow.academic.subject.application.ports.in.ReplaceSubjectCommand;
-import com.uniflow.academic.subject.application.ports.in.UpdateSubjectCommand;
 import com.uniflow.academic.subject.application.ports.out.SubjectRepository;
 import com.uniflow.academic.subject.domain.Subject;
 import com.uniflow.academic.subject.domain.exception.SubjectCodeAlreadyExistsException;
@@ -17,30 +16,31 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class UpdateSubjectService implements UpdateSubjectCommand {
+public class ReplaceSubjectService implements ReplaceSubjectCommand {
 
     private final SubjectRepository subjectRepository;
 
     @Override
-    public Subject execute(String subjectId, UpdateSubjectRequest request, String studentId) {
+    public Subject execute(String subjectId, ReplaceSubjectRequest request, String studentId) {
         log.info("Updating subject {} for student {}", subjectId, studentId);
 
         Subject current = subjectRepository.findById(subjectId, studentId)
                 .orElseThrow(() -> new SubjectNotFoundException("Subject not found"));
 
-        if (request.code().isPresent()) {
-            if(subjectRepository.existsByCode(String.valueOf(request.code()), current.getPeriodId(), studentId, subjectId)) {
-                throw new SubjectCodeAlreadyExistsException("Subject code already exists in this period");
-            }
+        if (subjectRepository.existsByCode(request.code(), current.getPeriodId(), studentId, subjectId)) {
+            throw new SubjectCodeAlreadyExistsException("Subject code already exists in this period");
         }
 
-        Subject updated = current.patch(
+        List<String> schedule = request.schedule() != null ? request.schedule() : List.of();
+
+        Subject updated = current.update(
                 request.name(),
                 request.code(),
                 request.professor(),
                 request.credits(),
                 request.color(),
-                request.description()
+                request.description(),
+                schedule
         );
 
         Subject saved = subjectRepository.update(updated);
