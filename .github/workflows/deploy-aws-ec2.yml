@@ -32,6 +32,42 @@ jobs:
           target: /home/ec2-user/app/
           strip_components: 1
 
+      - name: Escribir variables de entorno en EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DB_HOST,DB_PORT,DB_NAME,DB_USER,DB_PASSWORD,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,JWT_SECRET,APP_ISSUER_URI,BASE_URL,CORS_ALLOWED_ORIGINS
+          script: |
+            sudo mkdir -p /etc/myapp
+            sudo tee /etc/myapp/app.env > /dev/null <<EOF
+            DB_HOST=$DB_HOST
+            DB_PORT=$DB_PORT
+            DB_NAME=$DB_NAME
+            DB_USER=$DB_USER
+            DB_PASSWORD=$DB_PASSWORD
+            GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
+            GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
+            JWT_SECRET=$JWT_SECRET
+            APP_ISSUER_URI=$APP_ISSUER_URI
+            BASE_URL=$BASE_URL
+            CORS_ALLOWED_ORIGINS=$CORS_ALLOWED_ORIGINS
+            EOF
+            sudo chmod 600 /etc/myapp/app.env
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          APP_ISSUER_URI: ${{ vars.APP_ISSUER_URI }}
+          BASE_URL: ${{ vars.BASE_URL }}
+          CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS }}
+
       - name: Reiniciar servicio en EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
