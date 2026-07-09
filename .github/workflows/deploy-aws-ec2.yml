@@ -1,0 +1,43 @@
+name: Deploy Spring Boot to EC2
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    environment: Production
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build con Maven
+        run: mvn clean package -DskipTests
+      - name: Subir JAR a EC2
+        uses: appleboy/scp-action@v0.1.7    
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "target/*.jar"
+          target: /home/ec2-user/app/
+          strip_components: 1
+
+      - name: Reiniciar servicio en EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo systemctl restart myapp
+            sudo systemctl status myapp --no-pager
