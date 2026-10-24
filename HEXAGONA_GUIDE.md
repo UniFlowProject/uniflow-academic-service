@@ -1,7 +1,7 @@
 # Arquitectura Hexagonal con Spring Boot - Guía Paso a Paso
 
 ## Introducción
-Esta guía documenta la construcción de una arquitectura hexagonal (puertos y adaptadores) en Spring Boot 3.5.7 con PostgreSQL, Google OAuth2 y Hexagonal Architecture.
+Esta guía documenta la construcción de una arquitectura hexagonal (puertos y adaptadores) en Spring Boot 3.5.7 con PostgreSQL, Cognito (JWT resource server) y Hexagonal Architecture.
 
 ---
 
@@ -142,7 +142,7 @@ Interfaz de queries a base de datos.
 - `@Repository` (Spring) - Opcional, Spring la detecta automáticamente
 
 **Métodos:**
-- Métodos simples por nombre (`findByIdAndStudentId()`)
+- Métodos simples por nombre (`findByIdAndUserId()`)
 - Métodos complejos con `@Query` (JPQL/SQL)
 - Retornan `Optional<>` para opcionalidad segura
 - Soportan `Page<>` para paginación
@@ -229,47 +229,26 @@ Expone endpoints HTTP.
 - Retornar códigos HTTP apropiados
 
 ### 5.4 Manejador Global de Excepciones
-Convierte excepciones de dominio a respuestas HTTP.
+Existe UN solo `@RestControllerAdvice` en `shared/infrastructure/web/GlobalExceptionHandler`. Los módulos NO definen handlers propios.
 
-**Annotations:**
-- `@RestControllerAdvice` (Spring)
-- `@ExceptionHandler` (Spring)
-- `@Slf4j` (Lombok)
-
-**Handlers:**
-- Por cada excepción de dominio
-- Por errores de validación (`MethodArgumentNotValidException`)
-- Por errores HTTP (`HttpMessageNotReadableException`)
-- Fallback general para excepciones no manejadas
+- Las excepciones de dominio extienden la jerarquía de `shared/domain/exception`: `NotFoundException` (404), `InvalidDomainException` (400), `ConflictException` (409). Cada una define su `code` (p. ej. `PERIOD_NOT_FOUND`, `COURSE_CODE_ALREADY_EXISTS`).
+- Cuerpo de error único: `{ "error": { "code", "message", "details": [ { "field", "message" } ] } }` (campos nulos omitidos).
+- Además maneja validación de beans (`VALIDATION_ERROR`, 400), JSON mal formado (`MALFORMED_REQUEST`, 400), violaciones de integridad (`CONFLICT`, 409) y el fallback `INTERNAL_ERROR` (500).
 
 ---
 
 ## 6. Capa de Infraestructura - Seguridad
 
-### 6.1 Autenticación con Google OAuth2
-Validar tokens de Google.
+Cognito autentica en API Gateway y el servicio valida el JWT como OAuth2 resource server. No hay filtros ni validadores propios.
 
-**Annotations:**
-- `@Component` (Spring)
-- `@RequiredArgsConstructor` (Lombok)
-- `@Slf4j` (Lombok)
+### 6.1 Identidad del usuario
+- El id del usuario es el claim `sub` del JWT: `authentication.getName()` en los controllers.
+- No existe tabla de usuarios; cada tabla guarda `user_id` y todo acceso a datos se filtra por `user_id` (un recurso ajeno responde 404).
 
-**Componentes:**
-- `GoogleTokenValidator` - Valida tokens con Google
-- `GoogleTokenAuthenticationFilter` - Extrae y valida tokens en cada request
-- `GoogleAuthenticationUtil` - Helper para acceder a datos del usuario
-
-### 6.2 Configuración de Spring Security
-Define reglas de autorización y CORS.
-
-**Annotations:**
-- `@Configuration` (Spring)
-- `@EnableWebSecurity` (Spring Security)
-- `@Bean` (Spring)
-
-**Métodos:**
-- `filterChain()` - Configurar filtros de seguridad
-- `corsConfigurationSource()` - Configurar CORS
+### 6.2 Configuración de Spring Security (`config/SecurityConfig`)
+- Stateless, CSRF deshabilitado, `oauth2ResourceServer().jwt()` con `spring.security.oauth2.resourceserver.jwt.issuer-uri=${COGNITO_ISSUER_URI}`.
+- Públicos: `/health`, `/swagger-ui/**`, `/v3/api-docs/**`. Todo lo demás requiere autenticación.
+- CORS desde `CORS_ALLOWED_ORIGINS` (lista separada por comas).
 
 ---
 
@@ -285,8 +264,7 @@ spring:
   jpa:                 # Configuración JPA/Hibernate
   flyway:              # Migraciones de base de datos
   jackson:             # Serialización JSON
-  security.oauth2:     # OAuth2 de Google
-  web.cors:            # CORS
+  security.oauth2.resourceserver.jwt:  # issuer de Cognito
 
 server:               # Puerto y contexto
 logging:              # Niveles de log
@@ -298,9 +276,8 @@ SQL para crear tablas y esquemas.
 **Estructura:**
 ```
 src/main/resources/db/migration/
-├── V1__create_schema.sql
-├── V2__create_miobjeto_table.sql
-└── V3__add_indexes.sql
+├── V1__baseline.sql        # esquema academic, periods, courses
+└── V2__...sql              # cambios posteriores (nunca editar V1)
 ```
 
 **Naming:** `V{version}__{description}.sql`
@@ -310,27 +287,35 @@ src/main/resources/db/migration/
 ## 8. Flujo Completo de una Solicitud
 
 ```
-1. HTTP Request → PeriodStatsFilter (OAuth2)
+1. HTTP Request con Bearer JWT (Cognito)
    ↓
-2. GoogleTokenAuthenticationFilter valida token
+2. Resource server valida el JWT (firma/issuer) -> Authentication (name = sub)
    ↓
-3. PeriodController recibe request
+3. Controller recibe request (userId = authentication.getName())
    ↓
 4. Mapper HTTP convierte a Command/Query
    ↓
-5. Service ejecuta lógica de caso de uso
+5. Service ejecuta el caso de uso
    ↓
-6. Repository persiste/recupera datos
+6. Repository (puerto) persiste/recupera datos filtrando por user_id
    ↓
-7. Mapper Entity ↔ Domain
+7. Mapper Entity <-> Domain
    ↓
-8. Service retorna resultado de dominio
+8. Controller mapea a DTO HTTP y responde
    ↓
-9. Mapper Response convierte a DTO HTTP
-   ↓
-10. Controller retorna ResponseEntity
-   ↓
-11. PeriodExceptionHandler maneja errores
-   ↓
-12. HTTP Response al cliente
+9. GlobalExceptionHandler convierte cualquier error al cuerpo único de error
 ```
+
+---
+
+## 9. Convenciones globales
+
+- **Identidad**: `userId` = `sub` del JWT. Nunca `studentId`. Nombres de columna `user_id`.
+- **Dominio**: el recurso hijo de `PERIOD` es `COURSE` (antes "subject"); las tareas (`TASK`) cuelgan de `COURSE`. `CourseRepository.hasAssociatedTasks` es el gancho para el dominio de tareas.
+- **Errores**: un único cuerpo `{ "error": { "code", "message", "details": [ { "field", "message" } ] } }`; excepciones de dominio extienden `NotFoundException` / `InvalidDomainException` / `ConflictException`. Sin handlers por módulo.
+- **Periodo ajeno o inexistente**: crear/listar/validar cursos con un `periodId` que no pertenece al usuario (o no existe) responde 404 `PERIOD_NOT_FOUND`, igual que los endpoints de periodos.
+- **Paginación**: `shared/application/PagedResult<T>` -> `{ "items": [...], "pageInfo": { "total", "page", "limit", "totalPages", "hasNext", "hasPrev" } }` y `PaginationParams` (page desde 1, limit 1..100, default 10).
+- **Un periodo activo por usuario**: índice único parcial `uk_period_one_active_per_user` (`WHERE is_active`). Al activar, desactivar primero y hacer `flush` antes de activar (ver `ActivatePeriodService` / `PeriodPostgresAdapter.update`).
+- **Migraciones**: Flyway, esquema `academic`; `V1__baseline.sql` es el baseline de Postgres. Nuevos cambios en `V2+`.
+- **Tests**: integración con Testcontainers (`support/IntegrationTestBase` + `PostgresTestConfig`, `@ServiceConnection`), JWT simulado con `jwt()` de spring-security-test (`sub` = id del usuario). Cada test usa un `userId` aleatorio para aislarse.
+- **Logging**: nunca registrar tokens ni cabeceras de autorización; sin `System.out`.
