@@ -74,14 +74,6 @@ public class Period {
     }
 
     /**
-     * Checks if period is currently active by date
-     */
-    public boolean isCurrentlyActive() {
-        LocalDateTime now = LocalDateTime.now();
-        return !now.isBefore(startDate.atStartOfDay()) && !now.isAfter(endDate.atStartOfDay());
-    }
-
-    /**
      * Create a new period with generated ID and timestamps
      */
     public static Period create(

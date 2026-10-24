@@ -29,6 +29,8 @@ public interface PeriodJpaRepository
             Pageable pageable
     );
 
+    List<PeriodEntity> findAllByUserId(String userId);
+
     /**
      * Find all periods for a user filtered by type
      */

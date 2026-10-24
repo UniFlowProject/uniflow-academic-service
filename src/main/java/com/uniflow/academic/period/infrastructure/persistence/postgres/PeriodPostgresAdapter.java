@@ -99,6 +99,13 @@ public class PeriodPostgresAdapter implements PeriodRepository {
     }
 
     @Override
+    public List<Period> findAllByUserId(String userId) {
+        return jpaRepository.findAllByUserId(userId).stream()
+                .map(mapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public Optional<Period> findCurrentActive(String userId) {
         log.debug("Finding current active period for user: {}", userId);
         return jpaRepository.findByUserIdAndIsActive(userId, true)

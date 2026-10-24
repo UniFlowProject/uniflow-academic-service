@@ -53,6 +53,11 @@ public interface PeriodRepository {
      * @param userId The user ID
      * @return Optional containing the active period if found
      */
+    /**
+     * All periods of a user, unpaged (for aggregations).
+     */
+    List<Period> findAllByUserId(String userId);
+
     Optional<Period> findCurrentActive(String userId);
 
     /**

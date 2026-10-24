@@ -2,14 +2,14 @@ package com.uniflow.academic.period.application.services;
 
 import com.uniflow.academic.period.application.ports.in.GetPeriodStatisticsQuery;
 import com.uniflow.academic.period.application.ports.out.PeriodRepository;
-import com.uniflow.academic.shared.application.PaginationParams;
 import com.uniflow.academic.period.application.ports.out.dto.PeriodStatisticsResponse;
 import com.uniflow.academic.period.domain.Period;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
@@ -26,37 +26,31 @@ import java.util.stream.Collectors;
 public class GetPeriodStatisticsService implements GetPeriodStatisticsQuery {
 
     private final PeriodRepository periodRepository;
+    private final Clock clock;
 
     @Override
     public PeriodStatisticsResponse execute(String userId) {
         log.info("Calculating period statistics for user: {}", userId);
 
-        // Fetch all periods (use pagination internally or get all)
-        List<Period> allPeriods = periodRepository.findAll(
-                userId,
-                new PaginationParams(),
-                null
-        ).items();
+        List<Period> allPeriods = periodRepository.findAllByUserId(userId);
 
         long total = allPeriods.size();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDate today = LocalDate.now(clock);
 
-        // Count statistics
         long active = allPeriods.stream()
                 .filter(Period::getIsActive)
                 .count();
 
         long current = allPeriods.stream()
-                .filter(p -> p.getStartDate().isBefore(now.toLocalDate())
-                        && p.getEndDate().isAfter(now.toLocalDate()))
+                .filter(p -> !p.getStartDate().isAfter(today) && !p.getEndDate().isBefore(today))
                 .count();
 
         long upcoming = allPeriods.stream()
-                .filter(p -> p.getStartDate().isAfter(now.toLocalDate()))
+                .filter(p -> p.getStartDate().isAfter(today))
                 .count();
 
         long finished = allPeriods.stream()
-                .filter(p -> p.getEndDate().isBefore(now.toLocalDate()))
+                .filter(p -> p.getEndDate().isBefore(today))
                 .count();
 
         // Group by type
