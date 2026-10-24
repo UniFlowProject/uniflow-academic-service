@@ -263,4 +263,110 @@ class PeriodApiTest extends IntegrationTestBase {
         }
         mockMvc.perform(getAs(user, "/periods?page=1&limit=100")).andExpect(status().isOk());
     }
+
+    private void createPeriodOfYear(String user, int year) throws Exception {
+        mockMvc.perform(postAs(user, "/periods", """
+                        {"name":"Y%d","type":"summer","year":%d,"startDate":"%d-01-10","endDate":"%d-03-10"}
+                        """.formatted(year, year, year, year)))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void putUpdatesAllProvidedFields() throws Exception {
+        String user = newUserId();
+        String periodId = createPeriod(user, "P1");
+
+        mockMvc.perform(putAs(user, "/periods/" + periodId, """
+                        {"name":"Renamed","type":"summer","year":2026,
+                         "startDate":"2026-01-10","endDate":"2026-03-10"}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Renamed"))
+                .andExpect(jsonPath("$.type").value("summer"))
+                .andExpect(jsonPath("$.year").value(2026))
+                .andExpect(jsonPath("$.startDate").value("2026-01-10"))
+                .andExpect(jsonPath("$.endDate").value("2026-03-10"));
+        mockMvc.perform(getAs(user, "/periods/" + periodId))
+                .andExpect(jsonPath("$.name").value("Renamed"));
+    }
+
+    @Test
+    void blankNameOnUpdateIsRejected() throws Exception {
+        String user = newUserId();
+        String periodId = createPeriod(user, "P1");
+
+        mockMvc.perform(putAs(user, "/periods/" + periodId, "{\"name\":\"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.details[?(@.field == 'name')]").exists());
+        mockMvc.perform(getAs(user, "/periods/" + periodId))
+                .andExpect(jsonPath("$.name").value("P1"));
+    }
+
+    @Test
+    void invalidTypeOnUpdateIsRejected() throws Exception {
+        String user = newUserId();
+        String periodId = createPeriod(user, "P1");
+
+        mockMvc.perform(putAs(user, "/periods/" + periodId, "{\"type\":\"winter\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.details[?(@.field == 'type')]").exists());
+    }
+
+    @Test
+    void currentPeriodWithoutActiveOneIsNotFound() throws Exception {
+        String user = newUserId();
+        createPeriod(user, "P1");
+
+        mockMvc.perform(getAs(user, "/periods/current"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("PERIOD_NOT_FOUND"));
+    }
+
+    @Test
+    void listFiltersByYearAndActiveFlagAndCombination() throws Exception {
+        String user = newUserId();
+        String active = createPeriod(user, "Active2025");
+        createPeriodOfYear(user, 2024);
+        createPeriodOfYear(user, 2026);
+        mockMvc.perform(patchAs(user, "/periods/" + active + "/activate")).andExpect(status().isOk());
+
+        mockMvc.perform(getAs(user, "/periods?year=2024"))
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].year").value(2024));
+        mockMvc.perform(getAs(user, "/periods?isActive=false"))
+                .andExpect(jsonPath("$.items", hasSize(2)));
+        mockMvc.perform(getAs(user, "/periods?isActive=true&year=2025"))
+                .andExpect(jsonPath("$.items", hasSize(1)));
+        mockMvc.perform(getAs(user, "/periods?isActive=true&year=2024"))
+                .andExpect(jsonPath("$.items", hasSize(0)));
+        mockMvc.perform(getAs(user, "/periods?isActive=false&type=summer&year=2026"))
+                .andExpect(jsonPath("$.items", hasSize(1)));
+    }
+
+    @Test
+    void pageBeyondTheLastIsEmptyWithoutNext() throws Exception {
+        String user = newUserId();
+        createPeriod(user, "P1");
+        createPeriod(user, "P2");
+
+        mockMvc.perform(getAs(user, "/periods?page=5&limit=2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(0)))
+                .andExpect(jsonPath("$.pageInfo.total").value(2))
+                .andExpect(jsonPath("$.pageInfo.page").value(5))
+                .andExpect(jsonPath("$.pageInfo.hasNext").value(false))
+                .andExpect(jsonPath("$.pageInfo.hasPrev").value(true));
+    }
+
+    @Test
+    void emptyListHasZeroTotalPages() throws Exception {
+        mockMvc.perform(getAs(newUserId(), "/periods"))
+                .andExpect(jsonPath("$.items", hasSize(0)))
+                .andExpect(jsonPath("$.pageInfo.total").value(0))
+                .andExpect(jsonPath("$.pageInfo.totalPages").value(0))
+                .andExpect(jsonPath("$.pageInfo.hasNext").value(false))
+                .andExpect(jsonPath("$.pageInfo.hasPrev").value(false));
+    }
 }

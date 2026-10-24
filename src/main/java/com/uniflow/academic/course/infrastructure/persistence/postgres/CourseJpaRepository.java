@@ -15,10 +15,10 @@ public interface CourseJpaRepository extends JpaRepository<CourseEntity, String>
         SELECT c FROM CourseEntity c
         WHERE c.userId = :userId
         AND (:periodId IS NULL OR c.periodId = :periodId)
-        AND (:professorPattern IS NULL OR LOWER(c.professor) LIKE :professorPattern)
+        AND (:professorPattern IS NULL OR LOWER(c.professor) LIKE :professorPattern ESCAPE '\\')
         AND (:credits IS NULL OR c.credits = :credits)
-        AND (:searchPattern IS NULL OR LOWER(c.name) LIKE :searchPattern
-             OR LOWER(c.code) LIKE :searchPattern)
+        AND (:searchPattern IS NULL OR LOWER(c.name) LIKE :searchPattern ESCAPE '\\'
+             OR LOWER(c.code) LIKE :searchPattern ESCAPE '\\')
         ORDER BY c.createdAt DESC
     """)
     List<CourseEntity> searchCourses(

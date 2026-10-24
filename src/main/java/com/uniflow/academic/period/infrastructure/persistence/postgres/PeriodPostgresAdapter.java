@@ -4,9 +4,11 @@ import com.uniflow.academic.period.application.ports.out.PeriodRepository;
 import com.uniflow.academic.period.application.ports.out.dto.PeriodFilter;
 import com.uniflow.academic.shared.application.PaginationParams;
 import com.uniflow.academic.period.domain.Period;
+import com.uniflow.academic.period.domain.exception.PeriodActivationConflictException;
 import com.uniflow.academic.shared.application.PagedResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +22,8 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 public class PeriodPostgresAdapter implements PeriodRepository {
+
+    private static final String ONE_ACTIVE_PER_USER_INDEX = "uk_period_one_active_per_user";
 
     private final PeriodJpaRepository jpaRepository;
     private final PeriodEntityMapper mapper;
@@ -37,8 +41,25 @@ public class PeriodPostgresAdapter implements PeriodRepository {
         log.debug("Updating period: {}", period.getId());
         PeriodEntity entity = mapper.toEntity(period);
         // Flush so a deactivation reaches the database before a later activation (partial unique index).
-        PeriodEntity updated = jpaRepository.saveAndFlush(entity);
-        return mapper.toDomain(updated);
+        try {
+            PeriodEntity updated = jpaRepository.saveAndFlush(entity);
+            return mapper.toDomain(updated);
+        } catch (DataIntegrityViolationException e) {
+            if (violatesOneActivePerUser(e)) {
+                throw new PeriodActivationConflictException(
+                        "Another period was activated concurrently; retry the request");
+            }
+            throw e;
+        }
+    }
+
+    private static boolean violatesOneActivePerUser(Throwable e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause.getMessage() != null && cause.getMessage().contains(ONE_ACTIVE_PER_USER_INDEX)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

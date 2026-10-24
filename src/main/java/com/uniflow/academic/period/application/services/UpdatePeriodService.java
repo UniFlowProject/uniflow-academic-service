@@ -45,7 +45,7 @@ public class UpdatePeriodService implements UpdatePeriodCommand {
                         "Period not found: " + periodId
                 ));
 
-        if (request.getName() != null && !request.getName().isBlank()) {
+        if (request.getName() != null) {
             period = updateField(period, "name", request.getName());
         }
         if (request.getType() != null) {

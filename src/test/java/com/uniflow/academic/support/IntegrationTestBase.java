@@ -80,6 +80,12 @@ public abstract class IntegrationTestBase {
         return json(body).get("id").asText();
     }
 
+    protected String createCourse(String userId, String periodId, String code) throws Exception {
+        String body = mockMvc.perform(postAs(userId, "/courses", courseJson(periodId, code)))
+                .andReturn().getResponse().getContentAsString();
+        return json(body).get("id").asText();
+    }
+
     protected String courseJson(String periodId, String code) {
         return """
                 {"name":"Calculus","code":"%s","credits":4,"periodId":"%s"}

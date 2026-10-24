@@ -54,9 +54,9 @@ public class CoursePostgresAdapter implements CourseRepository {
         List<CourseEntity> entities = jpaRepository.searchCourses(
                 userId,
                 normalize(periodId),
-                normalize(professor),
+                likePattern(professor),
                 credits,
-                normalize(search)
+                likePattern(search)
         );
 
         return entities.stream()
@@ -155,6 +155,18 @@ public class CoursePostgresAdapter implements CourseRepository {
                 .byCredits(byCredits)
                 .byPeriod(byPeriod)
                 .build();
+    }
+
+    private String likePattern(String value) {
+        String trimmed = normalize(value);
+        if (trimmed == null) {
+            return null;
+        }
+        String escaped = trimmed.toLowerCase()
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
+        return "%" + escaped + "%";
     }
 
     private String normalize(String value) {

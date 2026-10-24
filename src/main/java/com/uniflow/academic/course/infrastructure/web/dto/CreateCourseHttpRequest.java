@@ -3,6 +3,7 @@ package com.uniflow.academic.course.infrastructure.web.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Builder;
 import lombok.Value;
@@ -26,6 +27,7 @@ public class CreateCourseHttpRequest {
 
     @Schema(description = "Course credits", example = "3")
     @NotNull
+    @PositiveOrZero
     Integer credits;
 
     @Schema(description = "Color in HEX", example = "#3b82f6")
