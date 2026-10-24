@@ -23,7 +23,7 @@ class CourseApiTest extends IntegrationTestBase {
 
         mockMvc.perform(getAs(user, "/periods/" + periodId + "/courses"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.courses", hasSize(1)));
+                .andExpect(jsonPath("$.items", hasSize(1)));
     }
 
     @Test
@@ -36,7 +36,7 @@ class CourseApiTest extends IntegrationTestBase {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("PERIOD_NOT_FOUND"));
         mockMvc.perform(getAs(owner, "/courses"))
-                .andExpect(jsonPath("$.data", hasSize(0)));
+                .andExpect(jsonPath("$.items", hasSize(0)));
     }
 
     @Test
@@ -77,7 +77,7 @@ class CourseApiTest extends IntegrationTestBase {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("COURSE_NOT_FOUND"));
         mockMvc.perform(getAs(other, "/courses"))
-                .andExpect(jsonPath("$.data", hasSize(0)));
+                .andExpect(jsonPath("$.items", hasSize(0)));
         mockMvc.perform(deleteAs(other, "/courses/" + courseId))
                 .andExpect(status().isNotFound());
     }
@@ -156,6 +156,6 @@ class CourseApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.periodId").value(periodId));
         mockMvc.perform(getAs(user, "/courses").param("periodId", " " + periodId + " "))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", hasSize(1)));
+                .andExpect(jsonPath("$.items", hasSize(1)));
     }
 }

@@ -29,12 +29,11 @@ Crear excepciones personalizadas para casos de error del negocio.
 **Estructura:**
 ```
 domain/
-├── model/
-│   └── MiObjeto.java
+├── MiObjeto.java
 └── exception/
-    ├── MiObjetoNotFoundException.java
-    ├── MiObjetoValidationException.java
-    └── InvalidMiObjetoTypeException.java
+    ├── MiObjetoNotFoundException.java   // extiende NotFoundException (404)
+    ├── InvalidMiObjetoException.java    // extiende InvalidDomainException (400)
+    └── MiObjetoAlreadyExistsException.java // extiende ConflictException (409)
 ```
 
 ---
@@ -49,7 +48,7 @@ Define contratos para casos de uso que modifican (Commands) y consultan (Queries
 
 **Ejemplo de estructura:**
 ```
-application/port/in/
+application/ports/in/
 ├── CreateMiObjetoCommand.java       // Crear
 ├── UpdateMiObjetoCommand.java       // Actualizar
 ├── DeleteMiObjetoCommand.java       // Eliminar
@@ -102,7 +101,7 @@ Implementan los puertos de entrada (Commands y Queries).
 
 **Estructura:**
 ```
-application/service/
+application/services/
 ├── CreateMiObjetoService.java
 ├── UpdateMiObjetoService.java
 ├── DeleteMiObjetoService.java
@@ -202,7 +201,7 @@ Convierte entre DTOs HTTP y modelos de aplicación.
 - `toCreateCommandRequest(httpRequest)`
 - `toUpdateCommandRequest(httpRequest)`
 - `toHttpResponse(domainObject)`
-- `toPaginationHttpResponse(appResponse)`
+- `toPagedResponse(pagedResult)` - usa `PagedResult.map`
 
 ### 5.3 Controlador REST
 Expone endpoints HTTP.
@@ -233,7 +232,7 @@ Existe UN solo `@RestControllerAdvice` en `shared/infrastructure/web/GlobalExcep
 
 - Las excepciones de dominio extienden la jerarquía de `shared/domain/exception`: `NotFoundException` (404), `InvalidDomainException` (400), `ConflictException` (409). Cada una define su `code` (p. ej. `PERIOD_NOT_FOUND`, `COURSE_CODE_ALREADY_EXISTS`).
 - Cuerpo de error único: `{ "error": { "code", "message", "details": [ { "field", "message" } ] } }` (campos nulos omitidos).
-- Además maneja validación de beans (`VALIDATION_ERROR`, 400), JSON mal formado (`MALFORMED_REQUEST`, 400), violaciones de integridad (`CONFLICT`, 409) y el fallback `INTERNAL_ERROR` (500).
+- Además maneja validación de beans (`VALIDATION_ERROR`, 400), JSON mal formado (`MALFORMED_REQUEST`, 400), violaciones de unicidad/FK (`CONFLICT`, 409; otros errores de integridad son 500), acceso denegado (`FORBIDDEN`, 403) y el fallback `INTERNAL_ERROR` (500).
 
 ---
 
@@ -247,7 +246,9 @@ Cognito autentica en API Gateway y el servicio valida el JWT como OAuth2 resourc
 
 ### 6.2 Configuración de Spring Security (`config/SecurityConfig`)
 - Stateless, CSRF deshabilitado, `oauth2ResourceServer().jwt()` con `spring.security.oauth2.resourceserver.jwt.issuer-uri=${COGNITO_ISSUER_URI}`.
-- Públicos: `/health`, `/swagger-ui/**`, `/v3/api-docs/**`. Todo lo demás requiere autenticación.
+- `config/JwtDecoderConfig` (perfil distinto de `test`) construye el `JwtDecoder` con `CognitoTokenValidators`: issuer + vigencia, `token_use=access` y `client_id` en `COGNITO_ALLOWED_CLIENT_IDS` (obligatoria; el arranque falla si está vacía). Los tests definen su propio `JwtDecoder` mock.
+- 401/403 devuelven el cuerpo de error JSON compartido (`UNAUTHORIZED` / `FORBIDDEN`) mediante `JsonAuthenticationEntryPoint` / `JsonAccessDeniedHandler`, sin detalles del token.
+- Públicos: `/health` (y swagger / `/v3/api-docs/**` solo si springdoc está habilitado, desactivado por defecto). Todo lo demás requiere autenticación.
 - CORS desde `CORS_ALLOWED_ORIGINS` (lista separada por comas).
 
 ---
@@ -310,12 +311,28 @@ src/main/resources/db/migration/
 
 ## 9. Convenciones globales
 
-- **Identidad**: `userId` = `sub` del JWT. Nunca `studentId`. Nombres de columna `user_id`.
-- **Dominio**: el recurso hijo de `PERIOD` es `COURSE` (antes "subject"); las tareas (`TASK`) cuelgan de `COURSE`. `CourseRepository.hasAssociatedTasks` es el gancho para el dominio de tareas.
+- **Identidad**: `userId` = `sub` del JWT; columnas `user_id`.
+- **Dominio**: el recurso hijo de `PERIOD` es `COURSE` ; las tareas (`TASK`) cuelgan de `COURSE`. `CourseRepository.hasAssociatedTasks` es el gancho para el dominio de tareas.
 - **Errores**: un único cuerpo `{ "error": { "code", "message", "details": [ { "field", "message" } ] } }`; excepciones de dominio extienden `NotFoundException` / `InvalidDomainException` / `ConflictException`. Sin handlers por módulo.
 - **Periodo ajeno o inexistente**: crear/listar/validar cursos con un `periodId` que no pertenece al usuario (o no existe) responde 404 `PERIOD_NOT_FOUND`, igual que los endpoints de periodos.
-- **Paginación**: `shared/application/PagedResult<T>` -> `{ "items": [...], "pageInfo": { "total", "page", "limit", "totalPages", "hasNext", "hasPrev" } }` y `PaginationParams` (page desde 1, limit 1..100, default 10).
+- **Listas**: las listas paginadas responden `{ "items": [...], "pageInfo": { "total", "page", "limit", "totalPages", "hasNext", "hasPrev" } }` (`shared/application/PagedResult<T>`); las listas sin paginar (`GET /courses`, `GET /periods/{id}/courses`) responden `{ "items": [...] }`.
+- **Paginación**: `PaginationParams` es inmutable y valida una sola vez (page >= 1, limit 1..100, defaults 1 y 10); valores inválidos responden 400 `VALIDATION_ERROR` (no se corrigen en silencio).
 - **Un periodo activo por usuario**: índice único parcial `uk_period_one_active_per_user` (`WHERE is_active`). Al activar, desactivar primero y hacer `flush` antes de activar (ver `ActivatePeriodService` / `PeriodPostgresAdapter.update`).
 - **Migraciones**: Flyway, esquema `academic`; `V1__baseline.sql` es el baseline de Postgres. Nuevos cambios en `V2+`.
 - **Tests**: integración con Testcontainers (`support/IntegrationTestBase` + `PostgresTestConfig`, `@ServiceConnection`), JWT simulado con `jwt()` de spring-security-test (`sub` = id del usuario). Cada test usa un `userId` aleatorio para aislarse.
 - **Logging**: nunca registrar tokens ni cabeceras de autorización; sin `System.out`.
+
+## 10. Piezas compartidas y convención de propiedad
+
+Dónde viven las piezas compartidas (cualquier módulo nuevo, p. ej. tareas, debe reutilizarlas):
+
+- `shared/application`: `PagedResult`, `PaginationParams`.
+- `shared/domain/exception`: `DomainException` y la jerarquía `NotFoundException` / `InvalidDomainException` / `ConflictException`.
+- `shared/infrastructure/web`: `GlobalExceptionHandler`, `ApiErrorResponse`, `JsonAuthenticationEntryPoint`, `JsonAccessDeniedHandler`.
+- `shared/infrastructure/security`: `CognitoTokenValidators`.
+
+Convención de propiedad (aislamiento por usuario):
+
+- Cada repositorio expone `findById(id, userId)` y un `default requireOwned(id, userId)` que lanza la excepción `NotFound` del módulo (`PeriodRepository`, `CourseRepository`). Los services usan `requireOwned`; nunca consultan por id sin `userId`.
+- Para validar un recurso padre (p. ej. el curso de una tarea) usar `courseRepository.requireOwned(courseId, userId)` y trabajar con el id canónico devuelto (los ids se normalizan con `trim`). Un recurso ajeno o inexistente siempre responde 404.
+- Los borrados son por `id` + `user_id` (`delete(id, userId)` devuelve `boolean`); un módulo no depende de la persistencia de otro: usa puertos (`CourseRepository.existsByPeriodId`, `hasAssociatedTasks`).

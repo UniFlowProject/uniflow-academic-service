@@ -10,6 +10,6 @@ import java.util.List;
 @Builder
 public class UserCoursesHttpResponse {
 
-    @Schema(description = "Courses for the authenticated user")
-    List<CourseHttpResponse> data;
+    @Schema(description = "Courses for the authenticated user (unpaged)")
+    List<CourseHttpResponse> items;
 }

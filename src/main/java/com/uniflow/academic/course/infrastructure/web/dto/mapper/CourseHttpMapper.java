@@ -72,7 +72,7 @@ public class CourseHttpMapper {
                 .map(this::toHttpResponse)
                 .collect(Collectors.toList());
         return UserCoursesHttpResponse.builder()
-                .data(data)
+                .items(data)
                 .build();
     }
 
@@ -81,7 +81,7 @@ public class CourseHttpMapper {
                 .map(this::toHttpResponse)
                 .collect(Collectors.toList());
         return CoursesByPeriodHttpResponse.builder()
-                .courses(data)
+                .items(data)
                 .build();
     }
 

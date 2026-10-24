@@ -11,5 +11,5 @@ import java.util.List;
 public class CoursesByPeriodHttpResponse {
 
     @Schema(description = "Courses within the period")
-    List<CourseHttpResponse> courses;
+    List<CourseHttpResponse> items;
 }

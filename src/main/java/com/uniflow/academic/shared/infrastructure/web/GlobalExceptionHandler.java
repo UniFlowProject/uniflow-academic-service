@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -19,6 +20,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import java.sql.SQLException;
 import java.util.List;
 
 @Slf4j
@@ -29,6 +31,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public static final String MALFORMED_REQUEST = "MALFORMED_REQUEST";
     public static final String CONFLICT = "CONFLICT";
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
+    public static final String FORBIDDEN = "FORBIDDEN";
+
+    private static final String VALIDATION_FAILED_MESSAGE = "Request validation failed";
+    private static final String SQL_STATE_UNIQUE_VIOLATION = "23505";
+    private static final String SQL_STATE_FOREIGN_KEY_VIOLATION = "23503";
 
     @ExceptionHandler(DomainException.class)
     public ResponseEntity<ApiErrorResponse> handleDomain(DomainException ex) {
@@ -49,30 +56,41 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .map(v -> new ApiErrorResponse.Detail(v.getPropertyPath().toString(), v.getMessage()))
                 .toList();
         return ResponseEntity.badRequest()
-                .body(ApiErrorResponse.of(VALIDATION_ERROR, "Request validation failed", details));
+                .body(ApiErrorResponse.of(VALIDATION_ERROR, VALIDATION_FAILED_MESSAGE, details));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return ResponseEntity.badRequest().body(ApiErrorResponse.of(
                 VALIDATION_ERROR,
-                "Request validation failed",
+                VALIDATION_FAILED_MESSAGE,
                 List.of(new ApiErrorResponse.Detail(ex.getName(), "Invalid value"))
         ));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex) {
-        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiErrorResponse.of(CONFLICT, "The operation conflicts with existing data"));
+        String sqlState = sqlStateOf(ex);
+        if (SQL_STATE_UNIQUE_VIOLATION.equals(sqlState) || SQL_STATE_FOREIGN_KEY_VIOLATION.equals(sqlState)) {
+            log.warn("Integrity conflict (SQLState {}): {}", sqlState, ex.getMostSpecificCause().getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiErrorResponse.of(CONFLICT, "The operation conflicts with existing data"));
+        }
+        log.error("Unexpected data integrity error (SQLState {})", sqlState, ex);
+        return internalError();
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("Access denied");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiErrorResponse.of(FORBIDDEN, "Access is denied"));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpected(Exception ex) {
         log.error("Unexpected error", ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiErrorResponse.of(INTERNAL_ERROR, "An unexpected error occurred"));
+        return internalError();
     }
 
     @Override
@@ -86,7 +104,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .map(e -> new ApiErrorResponse.Detail(e.getField(), e.getDefaultMessage()))
                 .toList();
         return ResponseEntity.badRequest()
-                .body(ApiErrorResponse.of(VALIDATION_ERROR, "Request validation failed", details));
+                .body(ApiErrorResponse.of(VALIDATION_ERROR, VALIDATION_FAILED_MESSAGE, details));
     }
 
     @Override
@@ -115,6 +133,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(statusCode).headers(headers).body(ApiErrorResponse.of(code, message));
     }
 
+    private ResponseEntity<ApiErrorResponse> internalError() {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiErrorResponse.of(INTERNAL_ERROR, "An unexpected error occurred"));
+    }
+
+    private static String sqlStateOf(Throwable ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sqlException && sqlException.getSQLState() != null) {
+                return sqlException.getSQLState();
+            }
+            if (cause.getCause() == cause) {
+                break;
+            }
+        }
+        return null;
+    }
+
     private HttpStatus statusOf(DomainException ex) {
         if (ex instanceof NotFoundException) {
             return HttpStatus.NOT_FOUND;
@@ -125,6 +160,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         if (ex instanceof InvalidDomainException) {
             return HttpStatus.BAD_REQUEST;
         }
+        log.warn("No HTTP status mapped for {}; defaulting to 500", ex.getClass().getName());
         return HttpStatus.INTERNAL_SERVER_ERROR;
     }
 }
