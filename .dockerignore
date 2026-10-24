@@ -1,0 +1,11 @@
+/target
+.git
+.github
+.mvn
+mvnw
+mvnw.cmd
+.atl
+/*.md
+.gitignore
+.gitattributes
+/*.json
