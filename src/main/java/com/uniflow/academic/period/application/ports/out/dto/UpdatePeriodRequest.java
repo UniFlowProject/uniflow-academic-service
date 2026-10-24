@@ -44,21 +44,6 @@ public class UpdatePeriodRequest {
     private LocalDate endDate;
 
     /**
-     * Validates that if both dates are provided, start is before end
-     */
-    @AssertTrue(
-            message = "Start date must be before end date",
-            payload = {},
-            groups = {}
-    )
-    public boolean isStartBeforeEnd() {
-        if (startDate == null || endDate == null) {
-            return true;
-        }
-        return startDate.isBefore(endDate);
-    }
-
-    /**
      * Check if any field has been set for update
      */
     public boolean hasAnyField() {

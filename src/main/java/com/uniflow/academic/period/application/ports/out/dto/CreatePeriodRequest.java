@@ -46,19 +46,4 @@ public class CreatePeriodRequest {
     @NotNull(message = "End date is required")
     @JsonProperty("endDate")
     private LocalDate endDate;
-
-    /**
-     * Validates business logic constraints beyond basic validation
-     */
-    @AssertTrue(
-            message = "Start date must be before end date",
-            payload = {},
-            groups = {}
-    )
-    public boolean isStartBeforeEnd() {
-        if (startDate == null || endDate == null) {
-            return true;
-        }
-        return startDate.isBefore(endDate);
-    }
 }

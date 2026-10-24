@@ -60,7 +60,7 @@ public class Period {
         }
         if (startDate.isAfter(endDate)) {
             throw new InvalidPeriodException(
-                    "Start date must be before end date"
+                    "Start date must not be after end date"
             );
         }
         if (year == null || year < 1900 || year > 2100) {

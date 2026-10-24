@@ -199,4 +199,56 @@ class PeriodApiTest extends IntegrationTestBase {
         mockMvc.perform(deleteAs(user, "/periods/" + periodId)).andExpect(status().isNoContent());
         mockMvc.perform(getAs(user, "/periods/" + periodId)).andExpect(status().isNotFound());
     }
+
+    private String periodBody(String start, String end) {
+        return """
+                {"name":"P","type":"first-semester","year":2025,"startDate":"%s","endDate":"%s"}
+                """.formatted(start, end);
+    }
+
+    @Test
+    void periodWithEqualStartAndEndDateIsValid() throws Exception {
+        String user = newUserId();
+
+        mockMvc.perform(postAs(user, "/periods", periodBody("2025-03-01", "2025-03-01")))
+                .andExpect(status().isCreated());
+
+        String periodId = createPeriod(user, "P1");
+        mockMvc.perform(putAs(user, "/periods/" + periodId,
+                        "{\"startDate\":\"2025-06-20\",\"endDate\":\"2025-06-20\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.startDate").value("2025-06-20"))
+                .andExpect(jsonPath("$.endDate").value("2025-06-20"));
+    }
+
+    @Test
+    void periodWithStartAfterEndIsRejectedOnCreate() throws Exception {
+        mockMvc.perform(postAs(newUserId(), "/periods", periodBody("2025-06-21", "2025-06-20")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_PERIOD"))
+                .andExpect(jsonPath("$.error.message").value("Start date must not be after end date"));
+    }
+
+    @Test
+    void periodWithStartAfterEndIsRejectedOnUpdate() throws Exception {
+        String user = newUserId();
+        String periodId = createPeriod(user, "P1");
+
+        mockMvc.perform(putAs(user, "/periods/" + periodId,
+                        "{\"startDate\":\"2025-08-01\",\"endDate\":\"2025-07-01\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_PERIOD"));
+    }
+
+    @Test
+    void singleFieldUpdateThatInvertsTheDatesIsRejected() throws Exception {
+        String user = newUserId();
+        String periodId = createPeriod(user, "P1");
+
+        mockMvc.perform(putAs(user, "/periods/" + periodId, "{\"startDate\":\"2025-07-01\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("INVALID_PERIOD"));
+        mockMvc.perform(getAs(user, "/periods/" + periodId))
+                .andExpect(jsonPath("$.startDate").value("2025-02-03"));
+    }
 }
