@@ -39,8 +39,8 @@ public class ActivatePeriodService implements ActivatePeriodCommand {
                         ));
 
         // Deactivate all currently active periods for this user
-        List<Period> activePerods = periodRepository.findAllActive(userId);
-        for (Period activePeriod : activePerods) {
+        List<Period> activePeriods = periodRepository.findAllActive(userId);
+        for (Period activePeriod : activePeriods) {
             if (!activePeriod.getId().equals(periodId)) {
                 Period deactivated = activePeriod.toBuilder()
                         .isActive(false)

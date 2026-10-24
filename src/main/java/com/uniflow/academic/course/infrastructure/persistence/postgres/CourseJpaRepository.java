@@ -12,14 +12,14 @@ public interface CourseJpaRepository extends JpaRepository<CourseEntity, String>
     Optional<CourseEntity> findByIdAndUserId(String id, String userId);
 
     @Query("""
-        SELECT s FROM CourseEntity s
-        WHERE s.userId = :userId
-        AND (:periodId IS NULL OR s.periodId = :periodId)
-        AND (:professorPattern IS NULL OR LOWER(s.professor) LIKE :professorPattern)
-        AND (:credits IS NULL OR s.credits = :credits)
-        AND (:searchPattern IS NULL OR LOWER(s.name) LIKE :searchPattern
-             OR LOWER(s.code) LIKE :searchPattern)
-        ORDER BY s.createdAt DESC
+        SELECT c FROM CourseEntity c
+        WHERE c.userId = :userId
+        AND (:periodId IS NULL OR c.periodId = :periodId)
+        AND (:professorPattern IS NULL OR LOWER(c.professor) LIKE :professorPattern)
+        AND (:credits IS NULL OR c.credits = :credits)
+        AND (:searchPattern IS NULL OR LOWER(c.name) LIKE :searchPattern
+             OR LOWER(c.code) LIKE :searchPattern)
+        ORDER BY c.createdAt DESC
     """)
     List<CourseEntity> searchCourses(
             @Param("userId") String userId,
@@ -41,8 +41,6 @@ public interface CourseJpaRepository extends JpaRepository<CourseEntity, String>
     );
 
     long countByPeriodId(String periodId);
-
-    long countByPeriodIdAndUserId(String periodId, String userId);
 
     List<CourseEntity> findByUserId(String userId);
 }

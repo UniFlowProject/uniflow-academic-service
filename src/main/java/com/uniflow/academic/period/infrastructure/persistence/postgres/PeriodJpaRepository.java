@@ -32,33 +32,6 @@ public interface PeriodJpaRepository
     List<PeriodEntity> findAllByUserId(String userId);
 
     /**
-     * Find all periods for a user filtered by type
-     */
-    Page<PeriodEntity> findByUserIdAndType(
-            String userId,
-            String type,
-            Pageable pageable
-    );
-
-    /**
-     * Find all periods for a user filtered by year
-     */
-    Page<PeriodEntity> findByUserIdAndYear(
-            String userId,
-            Integer year,
-            Pageable pageable
-    );
-
-    /**
-     * Find all periods for a user filtered by active status
-     */
-    Page<PeriodEntity> findByUserIdAndIsActive(
-            String userId,
-            Boolean isActive,
-            Pageable pageable
-    );
-
-    /**
      * Find all periods with multiple filters
      */
     @Query(
