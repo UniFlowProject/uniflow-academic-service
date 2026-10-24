@@ -31,6 +31,9 @@ spring:
           issuer-uri: ${COGNITO_ISSUER_URI}
 
 app:
+  security:
+    cognito:
+      allowed-client-ids: ${COGNITO_ALLOWED_CLIENT_IDS:}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 
@@ -48,6 +51,6 @@ logging:
 
 springdoc:
   swagger-ui:
-    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:true}
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}
   api-docs:
-    enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:false}
