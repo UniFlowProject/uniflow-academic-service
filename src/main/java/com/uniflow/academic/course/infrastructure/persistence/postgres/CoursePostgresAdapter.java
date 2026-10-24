@@ -7,6 +7,7 @@ import com.uniflow.academic.course.domain.Course;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
@@ -84,8 +85,14 @@ public class CoursePostgresAdapter implements CourseRepository {
     }
 
     @Override
-    public void delete(String courseId, String userId) {
-        jpaRepository.deleteById(courseId);
+    @Transactional
+    public boolean delete(String courseId, String userId) {
+        return jpaRepository.deleteByIdAndUserId(courseId, userId) > 0;
+    }
+
+    @Override
+    public boolean existsByPeriodId(String periodId, String userId) {
+        return jpaRepository.existsByPeriodIdAndUserId(periodId, userId);
     }
 
     @Override

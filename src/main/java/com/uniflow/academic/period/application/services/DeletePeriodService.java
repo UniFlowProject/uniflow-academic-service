@@ -1,7 +1,9 @@
 package com.uniflow.academic.period.application.services;
 
 import com.uniflow.academic.period.application.ports.in.DeletePeriodCommand;
+import com.uniflow.academic.course.application.ports.out.CourseRepository;
 import com.uniflow.academic.period.application.ports.out.PeriodRepository;
+import com.uniflow.academic.period.domain.Period;
 import com.uniflow.academic.period.domain.exception.PeriodDeletionException;
 import com.uniflow.academic.period.domain.exception.PeriodNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeletePeriodService implements DeletePeriodCommand {
 
     private final PeriodRepository periodRepository;
+    private final CourseRepository courseRepository;
 
     @Override
     public void execute(String periodId, String userId) {
@@ -29,21 +32,17 @@ public class DeletePeriodService implements DeletePeriodCommand {
                 userId
         );
 
-        // Verify period exists and belongs to user
-        if (!periodRepository.existsByIdAndUserId(periodId, userId)) {
-            throw new PeriodNotFoundException(
-                    "Period not found: " + periodId
-            );
-        }
+        Period period = periodRepository.requireOwned(periodId, userId);
 
-        // Check if period has associated courses
-        if (periodRepository.hasAssociatedCourses(periodId)) {
+        if (courseRepository.existsByPeriodId(period.getId(), userId)) {
             throw new PeriodDeletionException(
                     "Cannot delete period with associated courses"
             );
         }
 
-        periodRepository.delete(periodId, userId);
+        if (!periodRepository.delete(period.getId(), userId)) {
+            throw new PeriodNotFoundException("Period not found: " + periodId);
+        }
         log.info("Period deleted successfully: {}", periodId);
     }
 }

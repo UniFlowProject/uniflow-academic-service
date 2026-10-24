@@ -72,4 +72,6 @@ public interface PeriodJpaRepository
      * Check if period exists for user
      */
     boolean existsByIdAndUserId(String id, String userId);
+
+    long deleteByIdAndUserId(String id, String userId);
 }

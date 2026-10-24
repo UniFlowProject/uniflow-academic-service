@@ -3,7 +3,6 @@ package com.uniflow.academic.course.application.services;
 import com.uniflow.academic.course.application.ports.in.GetCourseByIdQuery;
 import com.uniflow.academic.course.application.ports.out.CourseRepository;
 import com.uniflow.academic.course.domain.Course;
-import com.uniflow.academic.course.domain.exception.CourseNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,7 +19,6 @@ public class GetCourseByIdService implements GetCourseByIdQuery {
     @Override
     public Course execute(String courseId, String userId) {
         log.info("Fetching course {} for user {}", courseId, userId);
-        return courseRepository.findById(courseId, userId)
-                .orElseThrow(() -> new CourseNotFoundException("Course not found"));
+        return courseRepository.requireOwned(courseId, userId);
     }
 }

@@ -40,7 +40,9 @@ public interface CourseJpaRepository extends JpaRepository<CourseEntity, String>
             String id
     );
 
-    long countByPeriodId(String periodId);
+    boolean existsByPeriodIdAndUserId(String periodId, String userId);
+
+    long deleteByIdAndUserId(String id, String userId);
 
     List<CourseEntity> findByUserId(String userId);
 }

@@ -4,7 +4,6 @@ import com.uniflow.academic.period.application.ports.out.PeriodRepository;
 import com.uniflow.academic.course.application.ports.in.ValidateCourseCodeQuery;
 import com.uniflow.academic.course.application.ports.out.CourseRepository;
 import com.uniflow.academic.course.application.ports.out.dto.ValidateCourseCodeResponse;
-import com.uniflow.academic.period.domain.exception.PeriodNotFoundException;
 import com.uniflow.academic.course.domain.exception.InvalidCourseException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,9 +39,7 @@ public class ValidateCourseCodeService implements ValidateCourseCodeQuery {
             throw new InvalidCourseException("Period is required");
         }
 
-        if (!periodRepository.existsByIdAndUserId(periodId, userId)) {
-            throw new PeriodNotFoundException("Period not found: " + periodId);
-        }
+        periodId = periodRepository.requireOwned(periodId, userId).getId();
 
         boolean matchesPattern = CODE_PATTERN.matcher(code).matches();
         boolean exists = courseRepository.existsByCode(code, periodId, userId, courseId);

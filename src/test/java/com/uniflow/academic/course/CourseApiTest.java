@@ -145,4 +145,17 @@ class CourseApiTest extends IntegrationTestBase {
         mockMvc.perform(getAs(user, "/stats/courses")).andExpect(jsonPath("$.total").value(1));
         mockMvc.perform(getAs(newUserId(), "/stats/courses")).andExpect(jsonPath("$.total").value(0));
     }
+
+    @Test
+    void periodIdIsTrimmedOnCreateAndListFilter() throws Exception {
+        String user = newUserId();
+        String periodId = createPeriod(user, "P1");
+
+        mockMvc.perform(postAs(user, "/courses", courseJson(" " + periodId + " ", "MAT-101")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.periodId").value(periodId));
+        mockMvc.perform(getAs(user, "/courses").param("periodId", " " + periodId + " "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)));
+    }
 }

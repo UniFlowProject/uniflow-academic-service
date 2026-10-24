@@ -4,7 +4,6 @@ import com.uniflow.academic.period.application.ports.out.PeriodRepository;
 import com.uniflow.academic.course.application.ports.in.GetCoursesByPeriodQuery;
 import com.uniflow.academic.course.application.ports.out.CourseRepository;
 import com.uniflow.academic.course.domain.Course;
-import com.uniflow.academic.period.domain.exception.PeriodNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,10 +24,8 @@ public class GetCoursesByPeriodService implements GetCoursesByPeriodQuery {
     public List<Course> execute(String periodId, String userId) {
         log.info("Fetching courses for period {} and user {}", periodId, userId);
 
-        if (!periodRepository.existsByIdAndUserId(periodId, userId)) {
-            throw new PeriodNotFoundException("Period not found: " + periodId);
-        }
+        String ownedPeriodId = periodRepository.requireOwned(periodId, userId).getId();
 
-        return courseRepository.findByPeriodId(periodId, userId);
+        return courseRepository.findByPeriodId(ownedPeriodId, userId);
     }
 }

@@ -4,7 +4,6 @@ import com.uniflow.academic.period.application.ports.out.PeriodRepository;
 import com.uniflow.academic.course.application.ports.in.CreateCourseCommand;
 import com.uniflow.academic.course.application.ports.out.CourseRepository;
 import com.uniflow.academic.course.domain.Course;
-import com.uniflow.academic.period.domain.exception.PeriodNotFoundException;
 import com.uniflow.academic.course.domain.exception.CourseCodeAlreadyExistsException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,11 +25,9 @@ public class CreateCourseService implements CreateCourseCommand {
     public Course execute(CreateCourseRequest request, String userId) {
         log.info("Creating course {} for user {}", request.name(), userId);
 
-        if (!periodRepository.existsByIdAndUserId(request.periodId(), userId)) {
-            throw new PeriodNotFoundException("Period not found: " + request.periodId());
-        }
+        String periodId = periodRepository.requireOwned(request.periodId(), userId).getId();
 
-        if (courseRepository.existsByCode(request.code(), request.periodId(), userId, null)) {
+        if (courseRepository.existsByCode(request.code(), periodId, userId, null)) {
             throw new CourseCodeAlreadyExistsException(
                     "Course code already exists in this period"
             );
@@ -46,7 +43,7 @@ public class CreateCourseService implements CreateCourseCommand {
                 request.professor(),
                 request.credits(),
                 request.color(),
-                request.periodId(),
+                periodId,
                 userId,
                 request.description(),
                 schedule

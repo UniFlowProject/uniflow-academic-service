@@ -21,14 +21,15 @@ public class DeleteCourseService implements DeleteCourseCommand {
     public void execute(String courseId, String userId) {
         log.info("Deleting course {} for user {}", courseId, userId);
 
-        courseRepository.findById(courseId, userId)
-                .orElseThrow(() -> new CourseNotFoundException("Course not found"));
+        courseRepository.requireOwned(courseId, userId);
 
         if (courseRepository.hasAssociatedTasks(courseId)) {
             throw new CourseDeletionException("Cannot delete course with associated tasks");
         }
 
-        courseRepository.delete(courseId, userId);
+        if (!courseRepository.delete(courseId, userId)) {
+            throw new CourseNotFoundException("Course not found");
+        }
         log.info("Course {} deleted", courseId);
     }
 }

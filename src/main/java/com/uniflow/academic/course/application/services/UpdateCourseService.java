@@ -5,7 +5,6 @@ import com.uniflow.academic.course.application.ports.in.UpdateCourseCommand;
 import com.uniflow.academic.course.application.ports.out.CourseRepository;
 import com.uniflow.academic.course.domain.Course;
 import com.uniflow.academic.course.domain.exception.CourseCodeAlreadyExistsException;
-import com.uniflow.academic.course.domain.exception.CourseNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,8 +24,7 @@ public class UpdateCourseService implements UpdateCourseCommand {
     public Course execute(String courseId, UpdateCourseRequest request, String userId) {
         log.info("Updating course {} for user {}", courseId, userId);
 
-        Course current = courseRepository.findById(courseId, userId)
-                .orElseThrow(() -> new CourseNotFoundException("Course not found"));
+        Course current = courseRepository.requireOwned(courseId, userId);
 
         if (request.code() != null) {
             if(courseRepository.existsByCode(request.code(), current.getPeriodId(), userId, courseId)) {

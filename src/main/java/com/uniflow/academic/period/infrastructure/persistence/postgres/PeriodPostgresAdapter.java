@@ -5,13 +5,13 @@ import com.uniflow.academic.period.application.ports.out.dto.PeriodFilter;
 import com.uniflow.academic.shared.application.PaginationParams;
 import com.uniflow.academic.period.domain.Period;
 import com.uniflow.academic.shared.application.PagedResult;
-import com.uniflow.academic.course.infrastructure.persistence.postgres.CourseJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -23,7 +23,6 @@ public class PeriodPostgresAdapter implements PeriodRepository {
 
     private final PeriodJpaRepository jpaRepository;
     private final PeriodEntityMapper mapper;
-    private final CourseJpaRepository courseJpaRepository;
 
     @Override
     public Period save(Period period) {
@@ -122,19 +121,14 @@ public class PeriodPostgresAdapter implements PeriodRepository {
     }
 
     @Override
-    public void delete(String periodId, String userId) {
+    @Transactional
+    public boolean delete(String periodId, String userId) {
         log.debug(
                 "Deleting period: {} for user: {}",
                 periodId,
                 userId
         );
-        jpaRepository.deleteById(periodId);
-    }
-
-    @Override
-    public boolean hasAssociatedCourses(String periodId) {
-        log.debug("Checking courses for period: {}", periodId);
-        return courseJpaRepository.countByPeriodId(periodId) > 0;
+        return jpaRepository.deleteByIdAndUserId(periodId, userId) > 0;
     }
 
     @Override

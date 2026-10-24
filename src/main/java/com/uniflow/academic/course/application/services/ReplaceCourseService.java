@@ -4,7 +4,6 @@ import com.uniflow.academic.course.application.ports.in.ReplaceCourseCommand;
 import com.uniflow.academic.course.application.ports.out.CourseRepository;
 import com.uniflow.academic.course.domain.Course;
 import com.uniflow.academic.course.domain.exception.CourseCodeAlreadyExistsException;
-import com.uniflow.academic.course.domain.exception.CourseNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,8 +23,7 @@ public class ReplaceCourseService implements ReplaceCourseCommand {
     public Course execute(String courseId, ReplaceCourseRequest request, String userId) {
         log.info("Updating course {} for user {}", courseId, userId);
 
-        Course current = courseRepository.findById(courseId, userId)
-                .orElseThrow(() -> new CourseNotFoundException("Course not found"));
+        Course current = courseRepository.requireOwned(courseId, userId);
 
         if (courseRepository.existsByCode(request.code(), current.getPeriodId(), userId, courseId)) {
             throw new CourseCodeAlreadyExistsException("Course code already exists in this period");

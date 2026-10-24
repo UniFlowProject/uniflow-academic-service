@@ -1,6 +1,7 @@
 package com.uniflow.academic.period.application.ports.out;
 
 import com.uniflow.academic.period.domain.Period;
+import com.uniflow.academic.period.domain.exception.PeriodNotFoundException;
 import com.uniflow.academic.period.application.ports.out.dto.PeriodFilter;
 import com.uniflow.academic.shared.application.PaginationParams;
 import com.uniflow.academic.shared.application.PagedResult;
@@ -69,27 +70,24 @@ public interface PeriodRepository {
     List<Period> findAllActive(String userId);
 
     /**
-     * Delete a period
+     * Delete a period owned by the user.
      *
-     * @param periodId The period ID
-     * @param userId The user ID (for authorization)
+     * @return true if a row was deleted, false if the user does not own that period
      */
-    void delete(String periodId, String userId);
+    boolean delete(String periodId, String userId);
 
-    /**
-     * Check if period has associated courses
-     *
-     * @param periodId The period ID
-     * @return true if period has courses
-     */
-    boolean hasAssociatedCourses(String periodId);
-
-    /**
-     * Check if period exists for user
-     *
-     * @param periodId The period ID
-     * @param userId The user ID
-     * @return true if period exists
-     */
     boolean existsByIdAndUserId(String periodId, String userId);
+
+    /**
+     * Load a period owned by the user. Ids are trimmed; blank, unknown or foreign ids all yield
+     * {@link PeriodNotFoundException}, so callers never leak whether another user's period exists.
+     */
+    default Period requireOwned(String periodId, String userId) {
+        String id = periodId == null ? "" : periodId.trim();
+        if (id.isEmpty()) {
+            throw new PeriodNotFoundException("Period not found: " + periodId);
+        }
+        return findById(id, userId)
+                .orElseThrow(() -> new PeriodNotFoundException("Period not found: " + id));
+    }
 }
