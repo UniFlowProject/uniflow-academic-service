@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Service implementation for retrieving the current active period.
- * Use case: Get the currently active period for a student
+ * Use case: Get the currently active period for a user
  */
 @Slf4j
 @Service
@@ -22,17 +22,17 @@ public class GetCurrentPeriodService implements GetCurrentPeriodQuery {
     private final PeriodRepository periodRepository;
 
     @Override
-    public Period execute(String studentId) {
-        log.info("Fetching current active period for student: {}", studentId);
+    public Period execute(String userId) {
+        log.info("Fetching current active period for user: {}", userId);
 
-        Period currentPeriod = periodRepository.findCurrentActive(studentId)
+        Period currentPeriod = periodRepository.findCurrentActive(userId)
                 .orElseThrow(() -> {
                     log.warn(
-                            "No active period found for student: {}",
-                            studentId
+                            "No active period found for user: {}",
+                            userId
                     );
                     return new PeriodNotFoundException(
-                            "No active period found for student"
+                            "No active period found for user"
                     );
                 });
 

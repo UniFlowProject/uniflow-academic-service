@@ -18,45 +18,33 @@ public class CreatePeriodService implements CreatePeriodCommand {
     private final PeriodRepository periodRepository;
 
     @Override
-    public Period execute(CreatePeriodRequest request, String studentId) {
+    public Period execute(CreatePeriodRequest request, String userId) {
         log.info(
-                "Creating new period: {} for student: {}",
+                "Creating new period: {} for user: {}",
                 request.name(),
-                studentId
+                userId
         );
 
+        Period period = Period.create(
+                request.name(),
+                parsePeriodType(request.type()),
+                request.year(),
+                request.startDate(),
+                request.endDate(),
+                userId
+        );
+
+        Period savedPeriod = periodRepository.save(period);
+        log.info("Period created successfully with id: {}", savedPeriod.getId());
+
+        return savedPeriod;
+    }
+
+    private Period.PeriodType parsePeriodType(String type) {
         try {
-            // Convert request type string to enum
-            Period.PeriodType periodType =
-                    Period.PeriodType.fromValue(request.type());
-
-            // Create domain object - this validates business rules
-            Period period = Period.create(
-                    request.name(),
-                    periodType,
-                    request.year(),
-                    request.startDate(),
-                    request.endDate(),
-                    studentId
-            );
-
-            // Persist period
-            Period savedPeriod = periodRepository.save(period);
-            log.info("Period created successfully with id: {}", savedPeriod.getId());
-
-            return savedPeriod;
-
+            return Period.PeriodType.fromValue(type);
         } catch (IllegalArgumentException e) {
-            log.error("Invalid period type: {}", request.type(), e);
-            throw new InvalidPeriodException(
-                    "Invalid period type: " + request.type()
-            );
-        } catch (Exception e) {
-            log.error("Error creating period for student: {}", studentId, e);
-            throw new InvalidPeriodException(
-                    "Failed to create period: " + e.getMessage(),
-                    e
-            );
+            throw new InvalidPeriodException("Invalid period type: " + type);
         }
     }
 }

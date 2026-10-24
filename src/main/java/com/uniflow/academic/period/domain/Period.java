@@ -21,7 +21,7 @@ public class Period {
     private Integer year;
     private LocalDate startDate;
     private LocalDate endDate;
-    private String studentId;
+    private String userId;
     private Boolean isActive;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -90,7 +90,7 @@ public class Period {
             Integer year,
             LocalDate startDate,
             LocalDate endDate,
-            String studentId
+            String userId
     ) {
         Period period = Period.builder()
                 .id(UUID.randomUUID().toString())
@@ -99,7 +99,7 @@ public class Period {
                 .year(year)
                 .startDate(startDate)
                 .endDate(endDate)
-                .studentId(studentId)
+                .userId(userId)
                 .isActive(false)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())

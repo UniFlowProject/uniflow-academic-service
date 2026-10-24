@@ -26,12 +26,12 @@ public class UpdatePeriodService implements UpdatePeriodCommand {
     public Period execute(
             String periodId,
             UpdatePeriodRequest request,
-            String studentId
+            String userId
     ) {
         log.info(
-                "Updating period: {} for student: {}",
+                "Updating period: {} for user: {}",
                 periodId,
-                studentId
+                userId
         );
 
         if (!request.hasAnyField()) {
@@ -40,88 +40,49 @@ public class UpdatePeriodService implements UpdatePeriodCommand {
             );
         }
 
-        Period period = periodRepository.findById(periodId, studentId)
+        Period period = periodRepository.findById(periodId, userId)
                 .orElseThrow(() -> new PeriodNotFoundException(
                         "Period not found: " + periodId
                 ));
 
+        if (request.getName() != null && !request.getName().isBlank()) {
+            period = updateField(period, "name", request.getName());
+        }
+        if (request.getType() != null) {
+            period = updateField(period, "type", parsePeriodType(request.getType()));
+        }
+        if (request.getYear() != null) {
+            period = updateField(period, "year", request.getYear());
+        }
+        if (request.getStartDate() != null) {
+            period = updateField(period, "startDate", request.getStartDate());
+        }
+        if (request.getEndDate() != null) {
+            period = updateField(period, "endDate", request.getEndDate());
+        }
+
+        period = updateField(period, "updatedAt", LocalDateTime.now());
+        period.validate();
+
+        Period updatedPeriod = periodRepository.update(period);
+        log.info("Period updated successfully: {}", periodId);
+
+        return updatedPeriod;
+    }
+
+    private Period.PeriodType parsePeriodType(String type) {
         try {
-            // Update only provided fields
-            if (request.getName() != null && !request.getName().isBlank()) {
-                period = updateFieldReflection(
-                        period,
-                        "name",
-                        request.getName()
-                );
-            }
-            if (request.getType() != null) {
-                Period.PeriodType newType =
-                        Period.PeriodType.fromValue(request.getType());
-                period = updateFieldReflection(
-                        period,
-                        "type",
-                        newType
-                );
-            }
-            if (request.getYear() != null) {
-                period = updateFieldReflection(
-                        period,
-                        "year",
-                        request.getYear()
-                );
-            }
-            if (request.getStartDate() != null) {
-                period = updateFieldReflection(
-                        period,
-                        "startDate",
-                        request.getStartDate()
-                );
-            }
-            if (request.getEndDate() != null) {
-                period = updateFieldReflection(
-                        period,
-                        "endDate",
-                        request.getEndDate()
-                );
-            }
-
-            // Update timestamp and validate
-            period = updateFieldReflection(
-                    period,
-                    "updatedAt",
-                    LocalDateTime.now()
-            );
-            period.validate();
-
-            Period updatedPeriod = periodRepository.update(period);
-            log.info("Period updated successfully: {}", periodId);
-
-            return updatedPeriod;
-
+            return Period.PeriodType.fromValue(type);
         } catch (IllegalArgumentException e) {
-            log.error("Invalid period type: {}", request.getType(), e);
-            throw new InvalidPeriodException(
-                    "Invalid period type: " + request.getType()
-            );
-        } catch (Exception e) {
-            log.error("Error updating period: {}", periodId, e);
-            throw new InvalidPeriodException(
-                    "Failed to update period: " + e.getMessage(),
-                    e
-            );
+            throw new InvalidPeriodException("Invalid period type: " + type);
         }
     }
 
-    /**
-     * Helper method to update immutable Period object fields.
-     * Since Period uses Lombok immutables, we need to rebuild it.
-     */
-    private Period updateFieldReflection(
+    private Period updateField(
             Period period,
             String fieldName,
             Object newValue
     ) {
-        System.out.println("Updating field: " + fieldName + " to: " + newValue);
         return switch (fieldName) {
             case "name" -> period.toBuilder()
                     .name((String) newValue)

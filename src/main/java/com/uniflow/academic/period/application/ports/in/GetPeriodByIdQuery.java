@@ -8,9 +8,9 @@ public interface GetPeriodByIdQuery {
      * Get a specific period by ID
      *
      * @param periodId The period ID
-     * @param studentId The student ID (for authorization)
+     * @param userId The user ID (for authorization)
      * @return The Period
      * @throws PeriodNotFoundException if period not found
      */
-    Period execute(String periodId, String studentId);
+    Period execute(String periodId, String userId);
 }

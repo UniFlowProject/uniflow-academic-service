@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
         name = "periods",
         schema = "academic",
         indexes = {
-                @Index(name = "idx_period_student_id", columnList = "student_id"),
+                @Index(name = "idx_period_user_id", columnList = "user_id"),
                 @Index(name = "idx_period_is_active", columnList = "is_active"),
                 @Index(name = "idx_period_year", columnList = "year"),
                 @Index(name = "idx_period_type", columnList = "type")
@@ -47,8 +47,8 @@ public class PeriodEntity {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
-    @Column(name = "student_id", length = 36, nullable = false)
-    private String studentId;
+    @Column(name = "user_id", length = 36, nullable = false)
+    private String userId;
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;

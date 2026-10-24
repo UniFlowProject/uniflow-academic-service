@@ -2,7 +2,7 @@ package com.uniflow.academic.period.application.services;
 
 import com.uniflow.academic.period.application.ports.in.GetPeriodStatisticsQuery;
 import com.uniflow.academic.period.application.ports.out.PeriodRepository;
-import com.uniflow.academic.period.application.ports.out.dto.PaginationParams;
+import com.uniflow.academic.shared.application.PaginationParams;
 import com.uniflow.academic.period.application.ports.out.dto.PeriodStatisticsResponse;
 import com.uniflow.academic.period.domain.Period;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 
 /**
  * Service implementation for period statistics.
- * Use case: Calculate and retrieve statistics about a student's periods
+ * Use case: Calculate and retrieve statistics about a user's periods
  */
 @Slf4j
 @Service
@@ -28,15 +28,15 @@ public class GetPeriodStatisticsService implements GetPeriodStatisticsQuery {
     private final PeriodRepository periodRepository;
 
     @Override
-    public PeriodStatisticsResponse execute(String studentId) {
-        log.info("Calculating period statistics for student: {}", studentId);
+    public PeriodStatisticsResponse execute(String userId) {
+        log.info("Calculating period statistics for user: {}", userId);
 
         // Fetch all periods (use pagination internally or get all)
         List<Period> allPeriods = periodRepository.findAll(
-                studentId,
+                userId,
                 new PaginationParams(),
                 null
-        ).getData();
+        ).items();
 
         long total = allPeriods.size();
         LocalDateTime now = LocalDateTime.now();

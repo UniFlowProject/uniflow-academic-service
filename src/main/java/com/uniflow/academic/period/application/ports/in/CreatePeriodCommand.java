@@ -7,13 +7,13 @@ import java.time.LocalDateTime;
 
 public interface CreatePeriodCommand {
     /**
-     * Create a new period for the authenticated student
+     * Create a new period for the authenticated user
      *
      * @param request Contains period creation details
-     * @param studentId The student ID making the request
+     * @param userId The user ID making the request
      * @return The created Period
      */
-    Period execute(CreatePeriodRequest request, String studentId);
+    Period execute(CreatePeriodRequest request, String userId);
 
     /**
      * DTO for create period request

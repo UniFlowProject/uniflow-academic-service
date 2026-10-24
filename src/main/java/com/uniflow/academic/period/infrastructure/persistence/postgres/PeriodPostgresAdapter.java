@@ -1,11 +1,11 @@
 package com.uniflow.academic.period.infrastructure.persistence.postgres;
 
-import com.uniflow.academic.period.application.ports.in.GetAllPeriodsQuery;
 import com.uniflow.academic.period.application.ports.out.PeriodRepository;
 import com.uniflow.academic.period.application.ports.out.dto.PeriodFilter;
-import com.uniflow.academic.period.application.ports.out.dto.PaginationParams;
+import com.uniflow.academic.shared.application.PaginationParams;
 import com.uniflow.academic.period.domain.Period;
-import com.uniflow.academic.subject.infrastructure.persistence.postgres.SubjectJpaRepository;
+import com.uniflow.academic.shared.application.PagedResult;
+import com.uniflow.academic.course.infrastructure.persistence.postgres.CourseJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -23,7 +23,7 @@ public class PeriodPostgresAdapter implements PeriodRepository {
 
     private final PeriodJpaRepository jpaRepository;
     private final PeriodEntityMapper mapper;
-    private final SubjectJpaRepository subjectJpaRepository;
+    private final CourseJpaRepository courseJpaRepository;
 
     @Override
     public Period save(Period period) {
@@ -37,30 +37,31 @@ public class PeriodPostgresAdapter implements PeriodRepository {
     public Period update(Period period) {
         log.debug("Updating period: {}", period.getId());
         PeriodEntity entity = mapper.toEntity(period);
-        PeriodEntity updated = jpaRepository.save(entity);
+        // Flush so a deactivation reaches the database before a later activation (partial unique index).
+        PeriodEntity updated = jpaRepository.saveAndFlush(entity);
         return mapper.toDomain(updated);
     }
 
     @Override
-    public Optional<Period> findById(String periodId, String studentId) {
+    public Optional<Period> findById(String periodId, String userId) {
         log.debug(
-                "Finding period: {} for student: {}",
+                "Finding period: {} for user: {}",
                 periodId,
-                studentId
+                userId
         );
-        return jpaRepository.findByIdAndStudentId(periodId, studentId)
+        return jpaRepository.findByIdAndUserId(periodId, userId)
                 .map(mapper::toDomain);
     }
 
     @Override
-    public GetAllPeriodsQuery.PaginatedPeriodsResponse findAll(
-            String studentId,
+    public PagedResult<Period> findAll(
+            String userId,
             PaginationParams params,
             PeriodFilter filter
     ) {
         log.debug(
-                "Finding all periods for student: {} with filters: {}",
-                studentId,
+                "Finding all periods for user: {} with filters: {}",
+                userId,
                 filter
         );
 
@@ -75,75 +76,67 @@ public class PeriodPostgresAdapter implements PeriodRepository {
         // Build query based on filters
         if (filter != null && !filter.isEmpty()) {
             page = jpaRepository.findAllWithFilters(
-                    studentId,
+                    userId,
                     filter.getType(),
                     filter.getYear(),
                     filter.getIsActive(),
                     pageable
             );
         } else {
-            page = jpaRepository.findByStudentId(studentId, pageable);
+            page = jpaRepository.findByUserIdOrderByStartDateDesc(userId, pageable);
         }
 
         List<Period> periods = page.getContent().stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
 
-        GetAllPeriodsQuery.PaginatedPeriodsResponse.Pagination pagination =
-                GetAllPeriodsQuery.PaginatedPeriodsResponse.Pagination.builder()
-                        .page(params.getPage())
-                        .limit(params.getLimit())
-                        .total(page.getTotalElements())
-                        .totalPages(page.getTotalPages())
-                        .hasNext(page.hasNext())
-                        .hasPrevious(page.hasPrevious())
-                        .build();
-
-        return GetAllPeriodsQuery.PaginatedPeriodsResponse.builder()
-                .data(periods)
-                .pagination(pagination)
-                .build();
+        return PagedResult.of(
+                periods,
+                page.getTotalElements(),
+                params.getPage(),
+                params.getLimit()
+        );
     }
 
     @Override
-    public Optional<Period> findCurrentActive(String studentId) {
-        log.debug("Finding current active period for student: {}", studentId);
-        return jpaRepository.findByStudentIdAndIsActive(studentId, true)
+    public Optional<Period> findCurrentActive(String userId) {
+        log.debug("Finding current active period for user: {}", userId);
+        return jpaRepository.findByUserIdAndIsActive(userId, true)
                 .map(mapper::toDomain);
     }
 
     @Override
-    public List<Period> findAllActive(String studentId) {
-        log.debug("Finding all active periods for student: {}", studentId);
-        return jpaRepository.findAllByStudentIdAndIsActive(studentId, true)
+    public List<Period> findAllActive(String userId) {
+        log.debug("Finding all active periods for user: {}", userId);
+        return jpaRepository.findAllByUserIdAndIsActive(userId, true)
                 .stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public void delete(String periodId, String studentId) {
+    public void delete(String periodId, String userId) {
         log.debug(
-                "Deleting period: {} for student: {}",
+                "Deleting period: {} for user: {}",
                 periodId,
-                studentId
+                userId
         );
         jpaRepository.deleteById(periodId);
     }
 
     @Override
-    public boolean hasAssociatedSubjects(String periodId) {
-        log.debug("Checking subjects for period: {}", periodId);
-        return subjectJpaRepository.countByPeriodId(periodId) > 0;
+    public boolean hasAssociatedCourses(String periodId) {
+        log.debug("Checking courses for period: {}", periodId);
+        return courseJpaRepository.countByPeriodId(periodId) > 0;
     }
 
     @Override
-    public boolean existsByIdAndStudentId(String periodId, String studentId) {
+    public boolean existsByIdAndUserId(String periodId, String userId) {
         log.debug(
-                "Checking existence of period: {} for student: {}",
+                "Checking existence of period: {} for user: {}",
                 periodId,
-                studentId
+                userId
         );
-        return jpaRepository.existsByIdAndStudentId(periodId, studentId);
+        return jpaRepository.existsByIdAndUserId(periodId, userId);
     }
 }

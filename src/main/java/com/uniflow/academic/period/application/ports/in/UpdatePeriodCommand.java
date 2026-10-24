@@ -9,12 +9,12 @@ public interface UpdatePeriodCommand {
      *
      * @param periodId The period to update
      * @param request Contains updated period details
-     * @param studentId The student ID making the request
+     * @param userId The user ID making the request
      * @return The updated Period
      */
     Period execute(
             String periodId,
             UpdatePeriodRequest request,
-            String studentId
+            String userId
     );
 }

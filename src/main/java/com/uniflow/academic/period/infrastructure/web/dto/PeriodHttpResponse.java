@@ -60,9 +60,9 @@ public class PeriodHttpResponse {
     )
     private LocalDate endDate;
 
-    @JsonProperty("studentId")
-    @Schema(description = "Student ID who owns this period")
-    private String studentId;
+    @JsonProperty("userId")
+    @Schema(description = "User ID who owns this period")
+    private String userId;
 
     @JsonProperty("isActive")
     @Schema(description = "Whether this period is currently active")

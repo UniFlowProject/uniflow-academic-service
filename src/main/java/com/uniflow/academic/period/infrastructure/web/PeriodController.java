@@ -2,12 +2,13 @@ package com.uniflow.academic.period.infrastructure.web;
 
 import com.uniflow.academic.period.application.ports.in.*;
 import com.uniflow.academic.period.application.ports.out.dto.PeriodFilter;
-import com.uniflow.academic.period.application.ports.out.dto.PaginationParams;
+import com.uniflow.academic.shared.application.PaginationParams;
 import com.uniflow.academic.period.infrastructure.web.dto.*;
+import com.uniflow.academic.shared.application.PagedResult;
 import com.uniflow.academic.period.infrastructure.web.dto.mapper.PeriodHttpMapper;
-import com.uniflow.academic.subject.application.ports.in.GetSubjectsByPeriodQuery;
-import com.uniflow.academic.subject.infrastructure.web.dto.SubjectsByPeriodHttpResponse;
-import com.uniflow.academic.subject.infrastructure.web.dto.mapper.SubjectHttpMapper;
+import com.uniflow.academic.course.application.ports.in.GetCoursesByPeriodQuery;
+import com.uniflow.academic.course.infrastructure.web.dto.CoursesByPeriodHttpResponse;
+import com.uniflow.academic.course.infrastructure.web.dto.mapper.CourseHttpMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -45,8 +46,8 @@ public class PeriodController {
     private final GetCurrentPeriodQuery getCurrentPeriodQuery;
     private final GetPeriodStatisticsQuery getPeriodStatisticsQuery;
     private final PeriodHttpMapper periodHttpMapper;
-    private final GetSubjectsByPeriodQuery getSubjectsByPeriodQuery;
-    private final SubjectHttpMapper subjectHttpMapper;
+    private final GetCoursesByPeriodQuery getCoursesByPeriodQuery;
+    private final CourseHttpMapper courseHttpMapper;
 
     /**
      * POST /periods - Create a new period
@@ -54,7 +55,7 @@ public class PeriodController {
     @PostMapping
     @Operation(
             summary = "Create a new period",
-            description = "Create a new academic period for the authenticated student"
+            description = "Create a new academic period for the authenticated user"
     )
     @ApiResponses({
             @ApiResponse(
@@ -70,12 +71,12 @@ public class PeriodController {
             Authentication authentication
     ) {
         log.info("POST /periods - Create period");
-        String studentId = authentication.getName();
+        String userId = authentication.getName();
 
         CreatePeriodCommand.CreatePeriodRequest commandRequest =
                 periodHttpMapper.toCreatePeriodCommandRequest(request);
 
-        var period = createPeriodCommand.execute(commandRequest, studentId);
+        var period = createPeriodCommand.execute(commandRequest, userId);
         PeriodHttpResponse response = periodHttpMapper.toHttpResponse(period);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -87,17 +88,16 @@ public class PeriodController {
     @GetMapping
     @Operation(
             summary = "Get all periods",
-            description = "Retrieve all periods for the authenticated student with optional filters and pagination"
+            description = "Retrieve all periods for the authenticated user with optional filters and pagination"
     )
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "Periods retrieved successfully",
-                    content = @Content(schema = @Schema(implementation = PaginationHttpResponse.class))
+                    description = "Periods retrieved successfully"
             ),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-    public ResponseEntity<PaginationHttpResponse> getAllPeriods(
+    public ResponseEntity<PagedResult<PeriodHttpResponse>> getAllPeriods(
             @Parameter(description = "Page number")
             @RequestParam(defaultValue = "1") Integer page,
 
@@ -116,7 +116,7 @@ public class PeriodController {
             Authentication authentication
     ) {
         log.info("GET /periods - Get all periods");
-        String studentId = authentication.getName();
+        String userId = authentication.getName();
 
         PaginationParams params = PaginationParams.builder()
                 .page(page)
@@ -129,8 +129,8 @@ public class PeriodController {
                 .isActive(isActive)
                 .build();
 
-        var response = getAllPeriodsQuery.execute(studentId, params, filter);
-        return ResponseEntity.ok(periodHttpMapper.toPaginationHttpResponse(response));
+        var response = getAllPeriodsQuery.execute(userId, params, filter);
+        return ResponseEntity.ok(periodHttpMapper.toPagedResponse(response));
     }
 
     /**
@@ -139,7 +139,7 @@ public class PeriodController {
     @GetMapping("/current")
     @Operation(
             summary = "Get current active period",
-            description = "Retrieve the currently active period for the authenticated student"
+            description = "Retrieve the currently active period for the authenticated user"
     )
     @ApiResponses({
             @ApiResponse(
@@ -154,9 +154,9 @@ public class PeriodController {
             Authentication authentication
     ) {
         log.info("GET /periods/current - Get current period");
-        String studentId = authentication.getName();
+        String userId = authentication.getName();
 
-        var period = getCurrentPeriodQuery.execute(studentId);
+        var period = getCurrentPeriodQuery.execute(userId);
         return ResponseEntity.ok(periodHttpMapper.toHttpResponse(period));
     }
 
@@ -184,9 +184,9 @@ public class PeriodController {
             Authentication authentication
     ) {
         log.info("GET /periods/{} - Get period by ID", periodId);
-        String studentId = authentication.getName();
+        String userId = authentication.getName();
 
-        var period = getPeriodByIdQuery.execute(periodId, studentId);
+        var period = getPeriodByIdQuery.execute(periodId, userId);
         return ResponseEntity.ok(periodHttpMapper.toHttpResponse(period));
     }
 
@@ -216,14 +216,14 @@ public class PeriodController {
             Authentication authentication
     ) {
         log.info("PUT /periods/{} - Update period", periodId);
-        String studentId = authentication.getName();
+        String userId = authentication.getName();
 
         var commandRequest = periodHttpMapper.toUpdatePeriodCommandRequest(request);
 
         var period = updatePeriodCommand.execute(
                 periodId,
                 commandRequest,
-                studentId
+                userId
         );
 
         return ResponseEntity.ok(periodHttpMapper.toHttpResponse(period));
@@ -235,13 +235,13 @@ public class PeriodController {
     @DeleteMapping("/{periodId}")
     @Operation(
             summary = "Delete period",
-            description = "Delete a period (only if it has no associated subjects)"
+            description = "Delete a period (only if it has no associated courses)"
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Period deleted successfully"),
             @ApiResponse(
                     responseCode = "409",
-                    description = "Cannot delete period with associated subjects"
+                    description = "Cannot delete period with associated courses"
             ),
             @ApiResponse(responseCode = "404", description = "Period not found"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
@@ -253,9 +253,9 @@ public class PeriodController {
             Authentication authentication
     ) {
         log.info("DELETE /periods/{} - Delete period", periodId);
-        String studentId = authentication.getName();
+        String userId = authentication.getName();
 
-        deletePeriodCommand.execute(periodId, studentId);
+        deletePeriodCommand.execute(periodId, userId);
         return ResponseEntity.noContent().build();
     }
 
@@ -265,7 +265,7 @@ public class PeriodController {
     @PatchMapping("/{periodId}/activate")
     @Operation(
             summary = "Activate period",
-            description = "Activate a period (deactivates all others for the student)"
+            description = "Activate a period (deactivates all others for the user)"
     )
     @ApiResponses({
             @ApiResponse(
@@ -283,34 +283,34 @@ public class PeriodController {
             Authentication authentication
     ) {
         log.info("PATCH /periods/{}/activate - Activate period", periodId);
-        String studentId = authentication.getName();
+        String userId = authentication.getName();
 
-        var period = activatePeriodCommand.execute(periodId, studentId);
+        var period = activatePeriodCommand.execute(periodId, userId);
         return ResponseEntity.ok(periodHttpMapper.toHttpResponse(period));
     }
 
     /**
-     * GET /periods/{periodId}/subjects - Get period subjects
+     * GET /periods/{periodId}/courses - Get period courses
      */
-    @GetMapping("/{periodId}/subjects")
-    @Operation(summary = "Get subjects by period")
+    @GetMapping("/{periodId}/courses")
+    @Operation(summary = "Get courses by period")
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "Subjects retrieved successfully",
-                    content = @Content(schema = @Schema(implementation = SubjectsByPeriodHttpResponse.class))
+                    description = "Courses retrieved successfully",
+                    content = @Content(schema = @Schema(implementation = CoursesByPeriodHttpResponse.class))
             ),
             @ApiResponse(responseCode = "401", description = "Unauthorized"),
             @ApiResponse(responseCode = "404", description = "Period not found")
     })
-    public ResponseEntity<SubjectsByPeriodHttpResponse> getSubjectsByPeriod(
+    public ResponseEntity<CoursesByPeriodHttpResponse> getCoursesByPeriod(
             @PathVariable String periodId,
             Authentication authentication
     ) {
-        log.info("GET /periods/{}/subjects - list subjects", periodId);
-        String studentId = authentication.getName();
-        var subjects = getSubjectsByPeriodQuery.execute(periodId, studentId);
-        return ResponseEntity.ok(subjectHttpMapper.toSubjectsByPeriodResponse(subjects));
+        log.info("GET /periods/{}/courses - list courses", periodId);
+        String userId = authentication.getName();
+        var courses = getCoursesByPeriodQuery.execute(periodId, userId);
+        return ResponseEntity.ok(courseHttpMapper.toCoursesByPeriodResponse(courses));
     }
 
     /**
@@ -319,7 +319,7 @@ public class PeriodController {
     @GetMapping("/stats")
     @Operation(
             summary = "Get period statistics",
-            description = "Get statistics about the student's periods"
+            description = "Get statistics about the user's periods"
     )
     @ApiResponses({
             @ApiResponse(
@@ -335,9 +335,9 @@ public class PeriodController {
             Authentication authentication
     ) {
         log.info("GET /stats/periods - Get period statistics");
-        String studentId = authentication.getName();
+        String userId = authentication.getName();
 
-        var stats = getPeriodStatisticsQuery.execute(studentId);
+        var stats = getPeriodStatisticsQuery.execute(userId);
         return ResponseEntity.ok(periodHttpMapper.toStatisticsHttpResponse(stats));
     }
 }

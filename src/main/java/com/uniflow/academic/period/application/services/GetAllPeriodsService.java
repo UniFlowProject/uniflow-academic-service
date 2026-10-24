@@ -3,7 +3,9 @@ package com.uniflow.academic.period.application.services;
 import com.uniflow.academic.period.application.ports.in.GetAllPeriodsQuery;
 import com.uniflow.academic.period.application.ports.out.PeriodRepository;
 import com.uniflow.academic.period.application.ports.out.dto.PeriodFilter;
-import com.uniflow.academic.period.application.ports.out.dto.PaginationParams;
+import com.uniflow.academic.period.domain.Period;
+import com.uniflow.academic.shared.application.PagedResult;
+import com.uniflow.academic.shared.application.PaginationParams;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -11,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Service implementation for retrieving all periods.
- * Use case: Get all periods for a student with optional filters and pagination
+ * Use case: Get all periods for a user with optional filters and pagination
  */
 @Slf4j
 @Service
@@ -22,14 +24,14 @@ public class GetAllPeriodsService implements GetAllPeriodsQuery {
     private final PeriodRepository periodRepository;
 
     @Override
-    public PaginatedPeriodsResponse execute(
-            String studentId,
+    public PagedResult<Period> execute(
+            String userId,
             PaginationParams params,
             PeriodFilter filter
     ) {
         log.info(
-                "Fetching periods for student: {} with page: {}, limit: {}",
-                studentId,
+                "Fetching periods for user: {} with page: {}, limit: {}",
+                userId,
                 params.getPage(),
                 params.getLimit()
         );
@@ -37,16 +39,16 @@ public class GetAllPeriodsService implements GetAllPeriodsQuery {
         // Validate and normalize pagination params
         params.validate();
 
-        PaginatedPeriodsResponse response = periodRepository.findAll(
-                studentId,
+        PagedResult<Period> response = periodRepository.findAll(
+                userId,
                 params,
                 filter
         );
 
         log.info(
                 "Retrieved {} periods out of {} total",
-                response.getData().size(),
-                response.getPagination().getTotal()
+                response.items().size(),
+                response.pageInfo().total()
         );
 
         return response;

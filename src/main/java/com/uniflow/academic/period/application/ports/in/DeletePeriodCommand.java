@@ -2,11 +2,11 @@ package com.uniflow.academic.period.application.ports.in;
 
 public interface DeletePeriodCommand {
     /**
-     * Delete a period if it has no associated subjects
+     * Delete a period if it has no associated courses
      *
      * @param periodId The period to delete
-     * @param studentId The student ID making the request
-     * @throws IllegalStateException if period has associated subjects
+     * @param userId The user ID making the request
+     * @throws PeriodDeletionException if period has associated courses
      */
-    void execute(String periodId, String studentId);
+    void execute(String periodId, String userId);
 }
