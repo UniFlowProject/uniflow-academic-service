@@ -1,35 +1,31 @@
 package com.uniflow.academic.shared.application;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-
 /**
- * DTO for pagination parameters.
+ * Validated, immutable pagination request (1-based page). Invalid values are rejected, not corrected.
  */
-@Getter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class PaginationParams {
-    @Builder.Default
-    private Integer page = 1;
+public record PaginationParams(int page, int limit) {
 
-    @Builder.Default
-    private Integer limit = 10;
+    public static final int DEFAULT_PAGE = 1;
+    public static final int DEFAULT_LIMIT = 10;
+    public static final int MAX_LIMIT = 100;
 
-    public void validate() {
-        if (page == null || page < 1) {
-            this.page = 1;
+    public PaginationParams {
+        if (page < 1) {
+            throw new IllegalArgumentException("page must be greater than or equal to 1");
         }
-        if (limit == null || limit < 1 || limit > 100) {
-            this.limit = 10;
+        if (limit < 1 || limit > MAX_LIMIT) {
+            throw new IllegalArgumentException("limit must be between 1 and " + MAX_LIMIT);
         }
     }
 
-    public Integer getOffset() {
-        validate();
-        return (page - 1) * limit;
+    public static PaginationParams of(Integer page, Integer limit) {
+        return new PaginationParams(
+                page == null ? DEFAULT_PAGE : page,
+                limit == null ? DEFAULT_LIMIT : limit
+        );
+    }
+
+    public static PaginationParams defaults() {
+        return new PaginationParams(DEFAULT_PAGE, DEFAULT_LIMIT);
     }
 }

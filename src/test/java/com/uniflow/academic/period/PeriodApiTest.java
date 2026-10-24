@@ -251,4 +251,16 @@ class PeriodApiTest extends IntegrationTestBase {
         mockMvc.perform(getAs(user, "/periods/" + periodId))
                 .andExpect(jsonPath("$.startDate").value("2025-02-03"));
     }
+
+    @Test
+    void invalidPaginationParametersAreRejected() throws Exception {
+        String user = newUserId();
+
+        for (String query : new String[]{"page=0", "page=-3", "limit=0", "limit=101", "limit=-1"}) {
+            mockMvc.perform(getAs(user, "/periods?" + query))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+        }
+        mockMvc.perform(getAs(user, "/periods?page=1&limit=100")).andExpect(status().isOk());
+    }
 }

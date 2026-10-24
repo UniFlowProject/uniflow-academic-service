@@ -32,12 +32,9 @@ public class GetAllPeriodsService implements GetAllPeriodsQuery {
         log.info(
                 "Fetching periods for user: {} with page: {}, limit: {}",
                 userId,
-                params.getPage(),
-                params.getLimit()
+                params.page(),
+                params.limit()
         );
-
-        // Validate and normalize pagination params
-        params.validate();
 
         PagedResult<Period> response = periodRepository.findAll(
                 userId,

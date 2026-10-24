@@ -118,10 +118,7 @@ public class PeriodController {
         log.info("GET /periods - Get all periods");
         String userId = authentication.getName();
 
-        PaginationParams params = PaginationParams.builder()
-                .page(page)
-                .limit(limit)
-                .build();
+        PaginationParams params = PaginationParams.of(page, limit);
 
         PeriodFilter filter = PeriodFilter.builder()
                 .type(type)

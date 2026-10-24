@@ -64,10 +64,9 @@ public class PeriodPostgresAdapter implements PeriodRepository {
                 filter
         );
 
-        params.validate();
         Pageable pageable = PageRequest.of(
-                params.getPage() - 1,
-                params.getLimit()
+                params.page() - 1,
+                params.limit()
         );
 
         Page<PeriodEntity> page;
@@ -92,8 +91,8 @@ public class PeriodPostgresAdapter implements PeriodRepository {
         return PagedResult.of(
                 periods,
                 page.getTotalElements(),
-                params.getPage(),
-                params.getLimit()
+                params.page(),
+                params.limit()
         );
     }
 
