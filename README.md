@@ -76,35 +76,44 @@ Flyway aplica `db/migration/V1__baseline.sql` y `V2__tasks.sql` (esquema `academ
 
 ## Desarrollo local con Docker
 
-`docker-compose.dev.yml` levanta el servicio completo en local: la app, PostgreSQL y un emisor OIDC falso que reemplaza a Cognito. Solo para desarrollo.
+`docker-compose.dev.yml` levanta el servicio completo en local sobre [Floci](https://floci.io/aws/), un emulador local de AWS (MIT). Floci reemplaza a los servicios de AWS que usa este servicio: Cognito (emisor OIDC/JWKS), RDS (un PostgreSQL real que Floci arranca en un contenedor) y, con el perfil `reminders`, SQS + EventBridge Scheduler + Lambda + SNS. Solo para desarrollo.
 
-Requisitos: Docker con Compose v2 (BuildKit) y `curl`.
+Requisitos: Docker con Compose v2 (BuildKit) y `curl`. La imagen de Floci está fijada en `floci/floci:2.3.0`.
 
 | Servicio | Qué es | Puerto en el host (variable) |
 |---|---|---|
+| `floci` | Emulador de AWS (`floci/floci:2.3.0`); monta `/var/run/docker.sock` para arrancar el contenedor de RDS (y los de Lambda) | `4566` (`FLOCI_PORT`), `7001` RDS (`FLOCI_RDS_PORT`) |
+| `floci-init` | Tarea de un solo uso e idempotente (`docker/floci/init.sh`, imagen `amazon/aws-cli`): crea el user pool de Cognito, el app client, los usuarios `user-a` y `user-b` y la instancia RDS PostgreSQL 16 | - |
 | `app` | Este servicio, construido con el `Dockerfile` | `3001` (`APP_PORT`) |
-| `postgres` | PostgreSQL 16; Flyway crea el esquema `academic` al arrancar | `5434` (`POSTGRES_PORT`) |
-| `mock-oauth` | [mock-oauth2-server](https://github.com/navikt/mock-oauth2-server) configurado en `docker/mock-oauth2/config.json` | `8081` (`MOCK_OAUTH_PORT`) |
-| `token` | Utilidad (perfil `tools`) que imprime un access token | - |
+| `token` | Utilidad (perfil `tools`) que imprime un access token de Cognito | - |
+| `floci-init-reminders` | Perfil `reminders`: cola SQS, grupo y rol de Scheduler, Lambda `process_expiration` (ver más abajo) | - |
 
-Los puertos se cambian con variables, p. ej. `APP_PORT=3002 POSTGRES_PORT=5440 docker compose -f docker-compose.dev.yml up -d --build`. Las credenciales de la base de datos (`DB_NAME`, `DB_USER`, `DB_PASSWORD`) también se pueden sobreescribir.
+Recursos que crea `floci-init` (valores fijos, no hace falta ningún archivo de entorno):
+
+| Recurso | Valor |
+|---|---|
+| User pool | `us-east-1_UniflowDev` (como `terraform/auth.tf`: login por email, política de contraseñas de 10+ caracteres) |
+| App client | `uniflow-spa` (público, sin secret; además de SRP y refresh habilita `USER_PASSWORD_AUTH`, solo para el helper de tokens) |
+| Usuarios | `user-a@uniflow.local` (`UserA-Dev-Passw0rd`) y `user-b@uniflow.local` (`UserB-Dev-Passw0rd`); se pueden cambiar con `USER_A_PASSWORD` / `USER_B_PASSWORD` |
+| RDS | instancia `uniflow-db`, PostgreSQL 16, base `uniflow_db`, usuario `postgres` / contraseña `password` (`DB_NAME`, `DB_USER`, `DB_PASSWORD`); Flyway crea el esquema `academic` al arrancar la app |
+
+Los puertos se cambian con variables, p. ej. `APP_PORT=3002 docker compose -f docker-compose.dev.yml up -d --build`. No cambies `FLOCI_PORT` si la app corre en el host: el emisor usa el puerto `4566` (ver abajo).
 
 ```bash
-# Levantar todo (la primera vez construye la imagen)
+# Levantar todo (la primera vez construye la imagen y descarga Floci, el PostgreSQL de RDS y aws-cli)
 docker compose -f docker-compose.dev.yml up -d --build
 docker compose -f docker-compose.dev.yml logs -f app
+docker compose -f docker-compose.dev.yml logs floci-init   # bootstrap de Cognito y RDS
 
-# Obtener tokens; el sub es el nombre pasado: user-a, user-b o dev-user (por defecto)
+# Obtener access tokens de Cognito; el sub es el UUID del usuario (user-a y user-b tienen sub distinto)
 TOKEN_A=$(scripts/dev-token.sh user-a)
 TOKEN_B=$(scripts/dev-token.sh user-b)
-# Equivalente sin el script:
-# TOKEN_A=$(docker compose -f docker-compose.dev.yml run --rm -q -e TOKEN_USER=user-a token)
 
-# Parar y borrar contenedores y datos
-docker compose -f docker-compose.dev.yml down -v
+# Parar y borrar contenedores, red y datos (también los contenedores de RDS/Lambda que arrancó Floci)
+docker compose -f docker-compose.dev.yml --profile reminders --profile tools down -v
 ```
 
-Ejemplo del flujo periodo -> curso -> tarea (los ids van en las respuestas):
+Ejemplo del flujo periodo -> curso -> tarea (los ids van en las respuestas; los `userId` son UUID):
 
 ```bash
 H="Authorization: Bearer $TOKEN_A"; J="Content-Type: application/json"
@@ -122,31 +131,64 @@ curl -s -H "Authorization: Bearer $TOKEN_B" localhost:3001/tasks
 
 Swagger UI (habilitado solo en este compose): <http://localhost:3001/swagger-ui/index.html>. La especificación OpenAPI no declara un esquema de seguridad, por lo que Swagger UI no ofrece el botón **Authorize** y sus peticiones "Try it out" responden 401: úsalo para consultar el contrato y ejecuta las llamadas con `curl` y el token. Los tokens duran 1 hora.
 
-Cómo funciona la autenticación local: los tokens traen `token_use=access`, `client_id=local-dev-client` (el valor de `COGNITO_ALLOWED_CLIENT_IDS` en el compose) y `iss=http://mock-oauth:8080/default`. El emisor deriva `iss` del host con el que se pidió el token, por eso los tokens se piden desde dentro de la red de Compose (servicio `token` / `scripts/dev-token.sh`) y no con `localhost:8081`. Un token pedido a `localhost:8081` tiene otro `iss` y la app del compose lo rechaza con 401.
+Base de datos: la app usa la instancia RDS de Floci (`floci:7001` dentro de la red de Compose, `localhost:7001` desde el host). Para inspeccionarla: `docker run --rm -it --network uniflow-academic-dev -e PGPASSWORD=password postgres:16-alpine psql -h floci -p 7001 -U postgres -d uniflow_db`.
 
-> **Importante:** el emisor falso firma con claves efímeras y entrega tokens a cualquiera sin autenticar. Es solo para desarrollo local; nunca lo uses (ni `COGNITO_ISSUER_URI` apuntando a él) fuera de tu máquina.
+### El emisor (issuer) y por qué funciona desde el host y desde Compose
 
-Para activar recordatorios reales en el compose cambia `REMINDER_SCHEDULER=eventbridge` y define `REMINDER_QUEUE_ARN`, `REMINDER_ROLE_ARN`, `AWS_REGION` y credenciales de AWS en el servicio `app`.
+La app exige `iss == COGNITO_ISSUER_URI` y descarga el discovery/JWKS de esa misma URL. Floci construye `iss` como `FLOCI_BASE_URL/<poolId>`, así que hay que lograr que **una sola URL** sea válida para la app dentro de Compose y para quien llame desde el host. El compose usa:
 
-### Solo Postgres y mock-oauth, con la app en el host
+- `FLOCI_BASE_URL=http://localhost.floci.io:4566` en `floci`. `localhost.floci.io` es un nombre DNS público que resuelve a `127.0.0.1`/`::1`, así que en el host llega al puerto publicado de Floci.
+- Un alias de red `localhost.floci.io` en el servicio `floci`: dentro de la red de Compose el mismo nombre resuelve al contenedor de Floci, por lo que la app, `floci-init` y `token` usan exactamente la misma URL.
+- El user pool y el client tienen id fijo (etiquetas `floci:override-id` y `floci:override-cognito-client-id=use-name`), por eso `COGNITO_ISSUER_URI=http://localhost.floci.io:4566/us-east-1_UniflowDev` y `COGNITO_ALLOWED_CLIENT_IDS=uniflow-spa` van directamente en el compose.
+
+Consecuencia: el `iss` de los tokens es siempre `http://localhost.floci.io:4566/us-east-1_UniflowDev`, pidas el token desde donde lo pidas. Si cambias `FLOCI_PORT`, el puerto del host deja de coincidir con el `4566` del emisor: no lo cambies si vas a ejecutar la app en el host. Se necesita resolución DNS pública para `localhost.floci.io` en el host; sin ella añade `127.0.0.1 localhost.floci.io` a `/etc/hosts`.
+
+Los tokens traen `token_use=access`, `client_id=uniflow-spa` y `sub` = UUID del usuario de Cognito, igual que Cognito real.
+
+### App en el host (`./mvnw spring-boot:run`) contra el mismo stack
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d postgres mock-oauth
+docker compose -f docker-compose.dev.yml up -d floci floci-init   # sin el contenedor de la app
+docker compose -f docker-compose.dev.yml logs floci-init          # espera a "done"
 
-# En el host el emisor es localhost:8081, así que el issuer y los tokens deben usar ese mismo host
-export DB_PORT=5434 DB_USER=postgres DB_PASSWORD=password
-export COGNITO_ISSUER_URI=http://localhost:8081/default
-export COGNITO_ALLOWED_CLIENT_IDS=local-dev-client
+export DB_PORT=7001 DB_USER=postgres DB_PASSWORD=password
+export COGNITO_ISSUER_URI=http://localhost.floci.io:4566/us-east-1_UniflowDev
+export COGNITO_ALLOWED_CLIENT_IDS=uniflow-spa
 ./mvnw spring-boot:run
 
-# Token pedido directamente al puerto publicado (el scope define el sub)
-TOKEN=$(curl -s localhost:8081/default/token -d grant_type=client_credentials \
-  -d client_id=local-dev-client -d client_secret=dev --data-urlencode scope=user-a \
-  | sed -n 's/.*"access_token" *: *"\([^"]*\)".*/\1/p')
+TOKEN=$(scripts/dev-token.sh user-a)    # mismo iss que usa la app del host
 curl -s -H "Authorization: Bearer $TOKEN" localhost:8080/periods
 ```
 
-La app en el host escucha en `8080` por defecto. No mezcles ambos modos: los tokens de `scripts/dev-token.sh` (`iss` con `mock-oauth:8080`) no sirven para la app del host, y viceversa.
+La app en el host escucha en `8080` por defecto y se conecta a la base por `localhost:7001`. No ejecutes a la vez la app del host y la del compose si no quieres compartir la misma base.
+
+### Recordatorios con Lambda, SQS y EventBridge Scheduler (perfil `reminders`)
+
+```bash
+docker compose -f docker-compose.dev.yml --profile reminders up -d --build
+```
+
+`floci-init-reminders` (`docker/floci/reminders.sh`) replica `terraform/messaging.tf`: colas `uniflow-expirations`, `uniflow-in-app-notifications` y `uniflow-email-notifications` (cada una con su DLQ), topic SNS `uniflow-notifications` suscrito a las dos últimas, grupo de Scheduler `uniflow`, rol `uniflow-scheduler`, y la Lambda real `process_expiration` (Node.js 22, copia de `lambdas/process_expiration/index.mjs` del repo raíz en `docker/floci/lambdas/`) conectada a `uniflow-expirations` con *report batch item failures*. Escribe `/out/reminders.env`, que el entrypoint de desarrollo de `app` carga para usar `REMINDER_SCHEDULER=eventbridge`, `REMINDER_GROUP_NAME`, `REMINDER_QUEUE_ARN`, `REMINDER_ROLE_ARN` y `REMINDER_LEAD_TIME_HOURS=0` (el SDK de AWS lee `AWS_ENDPOINT_URL` y las credenciales `test`/`test`). Si ya tenías el stack levantado sin el perfil, añade `--force-recreate app` para que la app tome la configuración.
+
+Con antelación 0, un recordatorio se dispara a la hora de `dueDate`. Prueba: crea una tarea con `dueDate` unos 2 minutos en el futuro, comprueba que existe el schedule y, tras la hora, que el mensaje llegó a las colas de notificaciones y a los logs de la Lambda:
+
+```bash
+AWS="docker compose -f docker-compose.dev.yml run --rm -q --no-deps -e AWS_ENDPOINT_URL=http://localhost.floci.io:4566 --entrypoint aws floci-init-reminders"
+$AWS scheduler list-schedules --group-name uniflow
+$AWS sqs receive-message --queue-url http://localhost.floci.io:4566/000000000000/uniflow-in-app-notifications
+$AWS logs get-log-events --log-group-name /aws/lambda/uniflow-process-expiration \
+  --log-stream-name "$($AWS logs describe-log-streams --log-group-name /aws/lambda/uniflow-process-expiration --query 'logStreams[0].logStreamName' --output text)"
+```
+
+Floci despacha los schedules cada ~10 s y la primera invocación de la Lambda arranca un contenedor, así que el mensaje llega unos 20-30 s después de la hora.
+
+### Precauciones
+
+- `floci` monta `/var/run/docker.sock`: equivale a acceso root sobre el host. Úsalo solo en tu máquina de desarrollo.
+- Todas las credenciales y contraseñas son valores de desarrollo (`test`/`test`, `password`, contraseñas de los usuarios). Nunca apuntes `COGNITO_ISSUER_URI` de un entorno real a Floci.
+- Floci es un emulador: puede diferir de AWS real (p. ej. Cognito añade `USER_PASSWORD_AUTH` solo aquí; el access token trae el scope `aws.cognito.signin.user.admin`).
+- El estado vive en memoria: si reinicias solo el contenedor `floci`, se pierden usuarios, pool y base de datos. Ejecuta `docker compose -f docker-compose.dev.yml up -d` para que `floci-init` lo recree y reinicia `app` (`restart app`); los usuarios nuevos tienen un `sub` distinto.
+- `docker compose ... down -v` elimina también los contenedores de RDS y Lambda que arrancó Floci. Si por algún motivo quedan contenedores `floci-aws-*` (tras `down -v` no quedó ninguno en las pruebas), bórralos con `docker rm -f $(docker ps -aq --filter name=floci-aws-)`.
 
 ## Endpoints
 
