@@ -38,6 +38,7 @@ class TaskRepositoryTest extends IntegrationTestBase {
 
     @BeforeEach
     void setUp() throws Exception {
+        jdbcTemplate.update("DELETE FROM academic.tasks");
         user = newUserId();
         periodId = createPeriod(user, "P1");
         courseId = createCourse(user, periodId, "MAT-101");
@@ -74,11 +75,10 @@ class TaskRepositoryTest extends IntegrationTestBase {
 
     @Test
     void savedTaskRoundTripsEveryField() {
-        Task task = aTask().id(newId()).userId(user).courseId(courseId).periodId(periodId)
+        Task task = repository.save(aTask().id(newId()).userId(user).courseId(courseId).periodId(periodId)
                 .description("desc").actualTimeHours(3).status(TaskStatus.DONE).completedAt(NOW)
                 .type(TaskType.GROUP_WORK).tags(List.of("a", "b")).groupMembers(List.of("u2"))
-                .attachments(List.of("x.pdf")).build();
-        repository.save(task);
+                .attachments(List.of("x.pdf")).build());
 
         assertThat(repository.findById(task.getId(), user)).contains(task);
     }
@@ -98,9 +98,9 @@ class TaskRepositoryTest extends IntegrationTestBase {
 
     @Test
     void saveUpsertsAnExistingTask() {
-        String id = newId();
-        save(id);
-        save(id, b -> b.title("renamed"));
+        Task saved = save(newId());
+        repository.save(saved.toBuilder().title("renamed").build());
+        String id = saved.getId();
 
         assertThat(repository.findById(id, user)).get().extracting(Task::getTitle).isEqualTo("renamed");
         assertThat(repository.findAllByUserId(user)).hasSize(1);

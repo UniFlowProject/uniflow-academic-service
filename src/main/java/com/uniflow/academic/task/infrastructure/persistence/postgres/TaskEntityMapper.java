@@ -31,7 +31,26 @@ public class TaskEntityMapper {
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .completedAt(task.getCompletedAt())
+                .version(task.getVersion())
                 .build();
+    }
+
+    public void copyOnto(TaskEntity entity, Task task) {
+        entity.setTitle(task.getTitle());
+        entity.setDescription(task.getDescription());
+        entity.setCourseId(task.getCourseId());
+        entity.setPeriodId(task.getPeriodId());
+        entity.setDueDate(task.getDueDate());
+        entity.setStatus(task.getStatus().value());
+        entity.setPriority(task.getPriority().value());
+        entity.setType(task.getType().value());
+        entity.setEstimatedTimeHours(task.getEstimatedTimeHours());
+        entity.setActualTimeHours(task.getActualTimeHours());
+        entity.setTags(task.getTags());
+        entity.setGroupMembers(task.getGroupMembers());
+        entity.setAttachments(task.getAttachments());
+        entity.setUpdatedAt(task.getUpdatedAt());
+        entity.setCompletedAt(task.getCompletedAt());
     }
 
     public Task toDomain(TaskEntity entity) {
@@ -54,6 +73,7 @@ public class TaskEntityMapper {
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .completedAt(entity.getCompletedAt())
+                .version(entity.getVersion())
                 .build();
     }
 }

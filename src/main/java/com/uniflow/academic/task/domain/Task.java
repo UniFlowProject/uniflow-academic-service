@@ -51,6 +51,8 @@ public class Task {
     Instant createdAt;
     Instant updatedAt;
     Instant completedAt;
+    /** Optimistic lock version; null until the task has been persisted. */
+    Long version;
 
     public static Task create(String id, String userId, TaskDraft draft, Instant now) {
         Task task = Task.builder()

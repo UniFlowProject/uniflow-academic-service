@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -91,4 +92,8 @@ public class TaskEntity {
 
     @Column(name = "completed_at")
     private Instant completedAt;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 }

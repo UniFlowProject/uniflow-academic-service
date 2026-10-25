@@ -50,6 +50,21 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void optimisticLockFailureIsATaskConflict() {
+        ResponseEntity<ApiErrorResponse> response = handler.handleOptimisticLock(
+                new org.springframework.orm.ObjectOptimisticLockingFailureException("TaskEntity", "t1"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody().error().code()).isEqualTo("TASK_CONFLICT");
+    }
+
+    @Test
+    void jpaOptimisticLockExceptionIsATaskConflictToo() {
+        assertThat(handler.handleOptimisticLock(new jakarta.persistence.OptimisticLockException("stale"))
+                .getBody().error().code()).isEqualTo("TASK_CONFLICT");
+    }
+
+    @Test
     void accessDeniedIsForbidden() {
         ResponseEntity<ApiErrorResponse> response = handler.handleAccessDenied(new AccessDeniedException("secret"));
 

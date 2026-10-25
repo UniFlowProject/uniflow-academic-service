@@ -4,12 +4,14 @@ import com.uniflow.academic.shared.domain.exception.ConflictException;
 import com.uniflow.academic.shared.domain.exception.DomainException;
 import com.uniflow.academic.shared.domain.exception.InvalidDomainException;
 import com.uniflow.academic.shared.domain.exception.NotFoundException;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -32,6 +34,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public static final String CONFLICT = "CONFLICT";
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
     public static final String FORBIDDEN = "FORBIDDEN";
+    public static final String TASK_CONFLICT = "TASK_CONFLICT";
 
     private static final String VALIDATION_FAILED_MESSAGE = "Request validation failed";
     private static final String SQL_STATE_UNIQUE_VIOLATION = "23505";
@@ -78,6 +81,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         }
         log.error("Unexpected data integrity error (SQLState {})", sqlState, ex);
         return internalError();
+    }
+
+    /** Only tasks are versioned: a concurrent write to the same task. */
+    @ExceptionHandler({ObjectOptimisticLockingFailureException.class, OptimisticLockException.class})
+    public ResponseEntity<ApiErrorResponse> handleOptimisticLock(Exception ex) {
+        log.warn("Optimistic locking failure: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiErrorResponse.of(
+                TASK_CONFLICT, "The task was modified by another request; reload it and try again"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
