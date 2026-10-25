@@ -9,7 +9,7 @@ import java.util.List;
  * Partial update of a task: null fields stay unchanged. Status is not changeable here.
  * {@code actualTimeHours} is the only optional field, so clearing it needs an explicit flag.
  */
-@Builder
+@Builder(toBuilder = true)
 public record TaskChanges(
         String title,
         String description,

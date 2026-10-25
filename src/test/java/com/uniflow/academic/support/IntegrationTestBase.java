@@ -2,6 +2,7 @@ package com.uniflow.academic.support;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -38,6 +39,14 @@ public abstract class IntegrationTestBase {
 
     @Autowired
     protected JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    protected RecordingReminderScheduler reminders;
+
+    @BeforeEach
+    void resetReminders() {
+        reminders.reset();
+    }
 
     protected static String newUserId() {
         return UUID.randomUUID().toString();
