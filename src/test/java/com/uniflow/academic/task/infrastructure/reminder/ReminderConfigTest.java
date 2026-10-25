@@ -3,6 +3,7 @@ package com.uniflow.academic.task.infrastructure.reminder;
 import com.uniflow.academic.task.application.ports.out.ReminderScheduler;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
@@ -48,6 +49,35 @@ class ReminderConfigTest {
     void startupFailsFastWhenEventBridgeIsSelectedWithoutArns() {
         runner.withPropertyValues("reminder.scheduler=eventbridge")
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void remindersRunOnABoundedExecutorThatShutsDownWithTheContext() {
+        ThreadPoolTaskExecutor[] captured = new ThreadPoolTaskExecutor[1];
+        runner.run(context -> {
+            ThreadPoolTaskExecutor executor = context.getBean("reminderExecutor", ThreadPoolTaskExecutor.class);
+            captured[0] = executor;
+            assertThat(executor.getCorePoolSize()).isEqualTo(2);
+            assertThat(executor.getMaxPoolSize()).isEqualTo(4);
+            assertThat(executor.getQueueCapacity()).isEqualTo(100);
+            assertThat(executor.getThreadPoolExecutor().getRejectedExecutionHandler())
+                    .isInstanceOf(java.util.concurrent.ThreadPoolExecutor.AbortPolicy.class);
+            assertThat(executor.getThreadPoolExecutor().isShutdown()).isFalse();
+        });
+        assertThat(captured[0].getThreadPoolExecutor().isShutdown()).isTrue();
+    }
+
+    @Test
+    void asyncExecutionCanBeSwitchedOffForTests() {
+        runner.withPropertyValues("reminder.async=false").run(context -> {
+            java.util.concurrent.Executor executor = context.getBean("reminderExecutor", java.util.concurrent.Executor.class);
+            Thread caller = Thread.currentThread();
+            Thread[] ranOn = new Thread[1];
+
+            executor.execute(() -> ranOn[0] = Thread.currentThread());
+
+            assertThat(ranOn[0]).isSameAs(caller);
+        });
     }
 
     @Test

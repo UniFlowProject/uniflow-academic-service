@@ -144,21 +144,37 @@ class EventBridgeReminderSchedulerTest {
 
     @ParameterizedTest
     @ValueSource(longs = {24, 10, 0, -5})
-    void scheduleSkipsWhenTheFireTimeIsNotInTheFuture(long hoursUntilDue) {
+    void scheduleSkipsWithoutCallingAwsWhenTheFireTimeIsNotInTheFuture(long hoursUntilDue) {
         scheduler.schedule(aTask().id("t1").dueDate(NOW.plus(Duration.ofHours(hoursUntilDue))).build());
 
         verify(client, never()).createSchedule(any(CreateScheduleRequest.class));
         verify(client, never()).updateSchedule(any(UpdateScheduleRequest.class));
+        verify(client, never()).deleteSchedule(any(DeleteScheduleRequest.class));
     }
 
-    @Test
-    void scheduleRemovesAStaleReminderWhenTheFireTimeIsNotInTheFuture() {
-        scheduler.schedule(aTask().id("t1").dueDate(NOW.plus(Duration.ofHours(3))).build());
+    @ParameterizedTest
+    @ValueSource(longs = {24, 10, 0, -5})
+    void rescheduleRemovesTheStaleReminderWhenTheFireTimeIsNotInTheFuture(long hoursUntilDue) {
+        scheduler.reschedule(aTask().id("t1").dueDate(NOW.plus(Duration.ofHours(hoursUntilDue))).build());
 
+        verify(client, never()).createSchedule(any(CreateScheduleRequest.class));
         ArgumentCaptor<DeleteScheduleRequest> captor = ArgumentCaptor.forClass(DeleteScheduleRequest.class);
         verify(client).deleteSchedule(captor.capture());
         assertThat(captor.getValue().name()).isEqualTo("task-reminder-t1");
         assertThat(captor.getValue().groupName()).isEqualTo(GROUP);
+    }
+
+    @Test
+    void rescheduleReplacesTheScheduleWhenTheFireTimeIsInTheFuture() {
+        when(client.createSchedule(any(CreateScheduleRequest.class)))
+                .thenThrow(ConflictException.builder().message("exists").build());
+
+        scheduler.reschedule(aTask().id("t1").title("Renamed").dueDate(NOW.plus(Duration.ofDays(5))).build());
+
+        ArgumentCaptor<UpdateScheduleRequest> captor = ArgumentCaptor.forClass(UpdateScheduleRequest.class);
+        verify(client).updateSchedule(captor.capture());
+        assertThat(captor.getValue().target().input()).contains("\"taskTitle\":\"Renamed\"");
+        verify(client, never()).deleteSchedule(any(DeleteScheduleRequest.class));
     }
 
     @Test

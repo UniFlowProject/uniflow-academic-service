@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.bind.BindException;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,6 +30,36 @@ class ReminderPropertiesTest {
         assertThat(properties.queueArn()).isNull();
         assertThat(properties.roleArn()).isNull();
         assertThat(properties.leadTimeHours()).isEqualTo(24);
+        assertThat(properties.apiTimeout()).isEqualTo(Duration.ofSeconds(5));
+        assertThat(properties.apiAttemptTimeout()).isEqualTo(Duration.ofSeconds(2));
+        assertThat(properties.maxRetries()).isEqualTo(2);
+        assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(1));
+        assertThat(properties.socketTimeout()).isEqualTo(Duration.ofSeconds(2));
+    }
+
+    @Test
+    void readsTheClientTimeoutAndRetrySettings() {
+        ReminderProperties properties = bind(Map.of(
+                "reminder.api-timeout", "10s",
+                "reminder.api-attempt-timeout", "3s",
+                "reminder.max-retries", "0",
+                "reminder.connect-timeout", "500ms",
+                "reminder.socket-timeout", "4s"));
+
+        assertThat(properties.apiTimeout()).isEqualTo(Duration.ofSeconds(10));
+        assertThat(properties.apiAttemptTimeout()).isEqualTo(Duration.ofSeconds(3));
+        assertThat(properties.maxRetries()).isZero();
+        assertThat(properties.connectTimeout()).isEqualTo(Duration.ofMillis(500));
+        assertThat(properties.socketTimeout()).isEqualTo(Duration.ofSeconds(4));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"reminder.api-timeout=0s", "reminder.api-attempt-timeout=-1s",
+            "reminder.connect-timeout=0s", "reminder.socket-timeout=0s", "reminder.max-retries=-1"})
+    void timeoutsMustBePositiveAndRetriesCannotBeNegative(String setting) {
+        String[] parts = setting.split("=");
+
+        assertThatThrownBy(() -> bind(Map.of(parts[0], parts[1]))).isInstanceOf(BindException.class);
     }
 
     @Test

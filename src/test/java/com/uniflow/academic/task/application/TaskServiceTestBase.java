@@ -27,7 +27,7 @@ abstract class TaskServiceTestBase {
     final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     final InMemoryTaskRepository repository = new InMemoryTaskRepository();
     final RecordingReminderScheduler scheduler = new RecordingReminderScheduler();
-    final TaskReminders reminders = new TaskReminders(scheduler);
+    final TaskReminders reminders = new TaskReminders(scheduler, Runnable::run);
     final PeriodRepository periodRepository = mock(PeriodRepository.class, CALLS_REAL_METHODS);
     final CourseRepository courseRepository = mock(CourseRepository.class, CALLS_REAL_METHODS);
     final TaskParentsResolver parents = new TaskParentsResolver(periodRepository, courseRepository);

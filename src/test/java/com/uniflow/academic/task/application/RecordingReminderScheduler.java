@@ -9,6 +9,7 @@ import java.util.List;
 class RecordingReminderScheduler implements ReminderScheduler {
 
     final List<Task> scheduled = new ArrayList<>();
+    final List<Task> rescheduled = new ArrayList<>();
     final List<String> cancelled = new ArrayList<>();
     boolean failing;
 
@@ -18,6 +19,14 @@ class RecordingReminderScheduler implements ReminderScheduler {
             throw new IllegalStateException("scheduler down");
         }
         scheduled.add(task);
+    }
+
+    @Override
+    public void reschedule(Task task) {
+        if (failing) {
+            throw new IllegalStateException("scheduler down");
+        }
+        rescheduled.add(task);
     }
 
     @Override

@@ -12,6 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class RecordingReminderScheduler implements ReminderScheduler {
 
     private final List<String> scheduled = new CopyOnWriteArrayList<>();
+    private final List<String> rescheduled = new CopyOnWriteArrayList<>();
     private final List<String> cancelled = new CopyOnWriteArrayList<>();
     private volatile boolean failing;
 
@@ -21,6 +22,14 @@ public class RecordingReminderScheduler implements ReminderScheduler {
             throw new IllegalStateException("scheduler down");
         }
         scheduled.add(task.getId());
+    }
+
+    @Override
+    public void reschedule(Task task) {
+        if (failing) {
+            throw new IllegalStateException("scheduler down");
+        }
+        rescheduled.add(task.getId());
     }
 
     @Override
@@ -35,6 +44,10 @@ public class RecordingReminderScheduler implements ReminderScheduler {
         return List.copyOf(scheduled);
     }
 
+    public List<String> rescheduled() {
+        return List.copyOf(rescheduled);
+    }
+
     public List<String> cancelled() {
         return List.copyOf(cancelled);
     }
@@ -45,6 +58,7 @@ public class RecordingReminderScheduler implements ReminderScheduler {
 
     public void reset() {
         scheduled.clear();
+        rescheduled.clear();
         cancelled.clear();
         failing = false;
     }

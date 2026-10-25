@@ -28,26 +28,41 @@ class UpdateTaskServiceTest extends TaskServiceTestBase {
 
     @Test
     void updateChangesOnlyTheGivenFields() {
-        Task updated = service.execute("t1", changes().title("Renamed").build(), USER);
+        Task updated = service.execute("t1", changes().description("Details").build(), USER);
 
-        assertThat(updated.getTitle()).isEqualTo("Renamed");
+        assertThat(updated.getDescription()).isEqualTo("Details");
+        assertThat(updated.getTitle()).isEqualTo("Homework");
         assertThat(updated.getCourseId()).isEqualTo("c1");
         assertThat(stored("t1")).isEqualTo(updated);
-        assertThat(scheduler.scheduled).isEmpty();
+        assertThat(scheduler.rescheduled).isEmpty();
+    }
+
+    @Test
+    void updateReschedulesTheReminderWhenTheTitleChanges() {
+        Task updated = service.execute("t1", changes().title("Renamed").build(), USER);
+
+        assertThat(scheduler.rescheduled).containsExactly(updated);
+    }
+
+    @Test
+    void updateWithTheSameTitleDoesNotReschedule() {
+        service.execute("t1", changes().title("Homework").build(), USER);
+
+        assertThat(scheduler.rescheduled).isEmpty();
     }
 
     @Test
     void updateReschedulesTheReminderWhenTheDueDateChanges() {
         Task updated = service.execute("t1", changes().dueDate(NOW.plus(Duration.ofDays(10))).build(), USER);
 
-        assertThat(scheduler.scheduled).containsExactly(updated);
+        assertThat(scheduler.rescheduled).containsExactly(updated);
     }
 
     @Test
     void updateWithTheSameDueDateDoesNotReschedule() {
         service.execute("t1", changes().dueDate(stored("t1").getDueDate()).build(), USER);
 
-        assertThat(scheduler.scheduled).isEmpty();
+        assertThat(scheduler.rescheduled).isEmpty();
     }
 
     @Test

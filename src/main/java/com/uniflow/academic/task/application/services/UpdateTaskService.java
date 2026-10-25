@@ -32,8 +32,8 @@ public class UpdateTaskService implements UpdateTaskCommand {
         Task updated = task.withChanges(withOwnedParents(task, changes, userId), clock.instant());
         taskRepository.save(updated);
 
-        if (!updated.getDueDate().equals(task.getDueDate())) {
-            reminders.schedule(updated);
+        if (!updated.getDueDate().equals(task.getDueDate()) || !updated.getTitle().equals(task.getTitle())) {
+            reminders.reschedule(updated);
         }
         return updated;
     }

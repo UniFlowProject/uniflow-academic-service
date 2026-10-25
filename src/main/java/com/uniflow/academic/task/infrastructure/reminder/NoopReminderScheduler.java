@@ -13,6 +13,10 @@ public class NoopReminderScheduler implements ReminderScheduler {
     }
 
     @Override
+    public void reschedule(Task task) {
+    }
+
+    @Override
     public void cancel(String taskId) {
     }
 }

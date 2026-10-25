@@ -228,21 +228,24 @@ class TaskApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.priority").value("urgent"))
                 .andExpect(jsonPath("$.courseId").value(courseId))
                 .andExpect(jsonPath("$.estimatedTimeHours").value(4));
-        assertThat(reminders.scheduled()).containsExactly(taskId);
+        assertThat(reminders.rescheduled()).containsExactly(taskId);
     }
 
     @Test
-    void patchReschedulesTheReminderOnlyWhenTheDueDateChanges() throws Exception {
+    void patchReschedulesTheReminderOnlyWhenTheTitleOrDueDateChange() throws Exception {
         String taskId = createTask();
         reminders.reset();
 
-        mockMvc.perform(patchJson("/tasks/" + taskId, "{\"title\":\"x\"}")).andExpect(status().isOk());
-        assertThat(reminders.scheduled()).isEmpty();
+        mockMvc.perform(patchJson("/tasks/" + taskId, "{\"description\":\"x\",\"priority\":\"low\"}"))
+                .andExpect(status().isOk());
+        assertThat(reminders.rescheduled()).isEmpty();
 
         mockMvc.perform(patchJson("/tasks/" + taskId, "{\"dueDate\":\"2099-12-01T10:00:00Z\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.dueDate").value("2099-12-01T10:00:00Z"));
-        assertThat(reminders.scheduled()).containsExactly(taskId);
+        mockMvc.perform(patchJson("/tasks/" + taskId, "{\"title\":\"Renamed\"}")).andExpect(status().isOk());
+        assertThat(reminders.rescheduled()).containsExactly(taskId, taskId);
+        assertThat(reminders.scheduled()).isEmpty();
     }
 
     @Test

@@ -59,11 +59,30 @@ public class EventBridgeReminderScheduler implements ReminderScheduler {
 
     @Override
     public void schedule(Task task) {
-        Instant fireAt = task.getDueDate().minus(leadTime);
-        if (!fireAt.isAfter(clock.instant())) {
-            cancel(task.getId());
-            return;
+        if (isFuture(fireAt(task))) {
+            createOrReplace(task);
         }
+    }
+
+    @Override
+    public void reschedule(Task task) {
+        if (isFuture(fireAt(task))) {
+            createOrReplace(task);
+        } else {
+            cancel(task.getId());
+        }
+    }
+
+    private Instant fireAt(Task task) {
+        return task.getDueDate().minus(leadTime);
+    }
+
+    private boolean isFuture(Instant fireAt) {
+        return fireAt.isAfter(clock.instant());
+    }
+
+    private void createOrReplace(Task task) {
+        Instant fireAt = fireAt(task);
         String name = scheduleName(task.getId());
         String expression = "at(" + AT_FORMAT.format(fireAt) + ")";
         String payload = payload(task);
