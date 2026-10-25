@@ -94,6 +94,36 @@ class EventBridgeReminderSchedulerTest {
         assertThat(payload.get("deadline").asText()).isEqualTo(due.toString());
     }
 
+    /**
+     * Mirrors lambdas/process_expiration/index.mjs: it JSON.parses the SQS body, requires truthy
+     * type, taskId and userId (validate), forwards type and userId as SNS String message attributes,
+     * and builds the text with taskTitle (falling back to taskId) and deadline (falling back to
+     * "pronto"). deadline is only interpolated into the text, never parsed as a date, so ISO-8601 is
+     * a formatting choice that must stay readable and unambiguous (UTC instant).
+     */
+    @Test
+    void payloadMatchesWhatTheProcessExpirationLambdaConsumes() throws Exception {
+        Instant due = Instant.parse("2026-10-26T12:00:00Z");
+
+        scheduler.schedule(aTask().id("t1").userId("u1").title("Homework").dueDate(due).build());
+
+        JsonNode payload = json.readTree(created().target().input());
+        assertThat(payload.isObject()).isTrue();
+        List<String> keys = new ArrayList<>();
+        payload.fieldNames().forEachRemaining(keys::add);
+        assertThat(keys).containsExactlyInAnyOrder("type", "taskId", "userId", "taskTitle", "deadline");
+        payload.fields().forEachRemaining(field ->
+                assertThat(field.getValue().isTextual()).as(field.getKey() + " is a JSON string").isTrue());
+        for (String required : List.of("type", "taskId", "userId")) {
+            assertThat(payload.get(required).asText()).as("validate() needs truthy " + required).isNotEmpty();
+        }
+        assertThat(payload.get("deadline").asText()).matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z");
+        assertThat(Instant.parse(payload.get("deadline").asText())).isEqualTo(due);
+        String text = "Tu tarea \"%s\" vence el %s.".formatted(
+                payload.get("taskTitle").asText(), payload.get("deadline").asText());
+        assertThat(text).isEqualTo("Tu tarea \"Homework\" vence el 2026-10-26T12:00:00Z.");
+    }
+
     @Test
     void payloadFillsEveryFieldTheConsumerLambdaValidates() throws Exception {
         scheduler.schedule(aTask().build());
