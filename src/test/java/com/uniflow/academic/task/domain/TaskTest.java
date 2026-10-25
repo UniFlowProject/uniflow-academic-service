@@ -102,11 +102,10 @@ class TaskTest {
 
     @ParameterizedTest
     @EnumSource(value = TaskStatus.class, names = {"DONE", "CANCELLED"})
-    void finalStatesAreNotModifiableNorDeletable(TaskStatus finalStatus) {
+    void finalStatesAreNotModifiable(TaskStatus finalStatus) {
         Task task = aTask().status(finalStatus).build();
 
         assertThat(task.canBeModified()).isFalse();
-        assertThat(task.canBeDeleted()).isFalse();
         assertThatThrownBy(task::ensureModifiable).isInstanceOf(TaskNotModifiableException.class);
     }
 

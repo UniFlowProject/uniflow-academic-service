@@ -461,10 +461,25 @@ class TaskApiTest extends IntegrationTestBase {
             mockMvc.perform(patchJson("/tasks/" + taskId, "{\"title\":\"x\"}"))
                     .andExpect(status().isConflict())
                     .andExpect(jsonPath("$.error.code").value("TASK_NOT_MODIFIABLE"));
-            mockMvc.perform(deleteAs(user, "/tasks/" + taskId))
-                    .andExpect(status().isConflict())
-                    .andExpect(jsonPath("$.error.code").value("TASK_NOT_MODIFIABLE"));
+            mockMvc.perform(patchJson("/tasks/" + taskId + "/status", "{\"status\":\"todo\"}"))
+                    .andExpect(status().isConflict());
         }
+    }
+
+    @Test
+    void closedTasksCanBeDeleted() throws Exception {
+        String done = createTask();
+        moveTo(done, "in-progress");
+        moveTo(done, "done");
+        String cancelled = createTask();
+        moveTo(cancelled, "cancelled");
+        reminders.reset();
+
+        mockMvc.perform(deleteAs(user, "/tasks/" + done)).andExpect(status().isNoContent());
+        mockMvc.perform(deleteAs(user, "/tasks/" + cancelled)).andExpect(status().isNoContent());
+
+        mockMvc.perform(getAs(user, "/tasks/" + done)).andExpect(status().isNotFound());
+        assertThat(reminders.cancelled()).containsExactly(done, cancelled);
     }
 
     @Test

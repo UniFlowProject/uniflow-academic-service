@@ -82,10 +82,6 @@ public class Task {
         return status != TaskStatus.DONE && status != TaskStatus.CANCELLED;
     }
 
-    public boolean canBeDeleted() {
-        return canBeModified();
-    }
-
     public boolean isOverdue(Instant now) {
         return canBeModified() && dueDate.isBefore(now);
     }

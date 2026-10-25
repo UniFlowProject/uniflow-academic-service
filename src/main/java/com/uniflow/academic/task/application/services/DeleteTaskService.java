@@ -4,7 +4,6 @@ import com.uniflow.academic.task.application.ports.in.DeleteTaskCommand;
 import com.uniflow.academic.task.application.ports.out.TaskRepository;
 import com.uniflow.academic.task.domain.Task;
 import com.uniflow.academic.task.domain.exception.TaskNotFoundException;
-import com.uniflow.academic.task.domain.exception.TaskNotModifiableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,9 +23,6 @@ public class DeleteTaskService implements DeleteTaskCommand {
         log.info("Deleting task {} for user {}", taskId, userId);
 
         Task task = taskRepository.requireOwned(taskId, userId);
-        if (!task.canBeDeleted()) {
-            throw new TaskNotModifiableException(task.getId(), task.getStatus());
-        }
         if (!taskRepository.delete(task.getId(), userId)) {
             throw new TaskNotFoundException(taskId);
         }

@@ -183,7 +183,6 @@ public class TaskController {
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Task deleted"),
             @ApiResponse(responseCode = "404", description = "Task not found"),
-            @ApiResponse(responseCode = "409", description = "Task is done or cancelled and cannot be deleted"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
     public ResponseEntity<Void> deleteTask(@PathVariable String taskId, Authentication authentication) {

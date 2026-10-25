@@ -3,8 +3,9 @@ package com.uniflow.academic.task.application;
 import com.uniflow.academic.task.application.services.DeleteTaskService;
 import com.uniflow.academic.task.domain.TaskStatus;
 import com.uniflow.academic.task.domain.exception.TaskNotFoundException;
-import com.uniflow.academic.task.domain.exception.TaskNotModifiableException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import static com.uniflow.academic.task.TaskFixtures.aTask;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,13 +32,15 @@ class DeleteTaskServiceTest extends TaskServiceTestBase {
         assertThat(stored("t1")).isNull();
     }
 
-    @Test
-    void deletingAFinishedTaskIsRejected() {
-        repository.save(aTask().status(TaskStatus.CANCELLED).build());
+    @ParameterizedTest
+    @EnumSource(TaskStatus.class)
+    void aTaskInAnyStatusCanBeDeletedAndItsReminderIsCancelled(TaskStatus status) {
+        repository.save(aTask().status(status).build());
 
-        assertThatThrownBy(() -> service.execute("t1", USER)).isInstanceOf(TaskNotModifiableException.class);
-        assertThat(stored("t1")).isNotNull();
-        assertThat(scheduler.cancelled).isEmpty();
+        service.execute("t1", USER);
+
+        assertThat(stored("t1")).isNull();
+        assertThat(scheduler.cancelled).containsExactly("t1");
     }
 
     @Test
