@@ -110,7 +110,7 @@ class TaskApiTest extends IntegrationTestBase {
         String body = """
                 {"title":"Project","description":"d","courseId":"%s","periodId":"%s",
                  "dueDate":"2099-11-01T10:00:00+02:00","priority":"low","type":"group-work",
-                 "estimatedTimeHours":0,"tags":["a"],"groupMembers":["u2"],"attachments":["x.pdf"]}
+                 "estimatedTimeHours":0,"tags":["a"],"groupMembers":["u2"],"attachments":["https://example.com/x.pdf"]}
                 """.formatted(courseId, periodId);
 
         mockMvc.perform(postAs(user, "/tasks", body))
@@ -118,7 +118,7 @@ class TaskApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.dueDate").value("2099-11-01T08:00:00Z"))
                 .andExpect(jsonPath("$.groupMembers[0]").value("u2"))
                 .andExpect(jsonPath("$.tags[0]").value("a"))
-                .andExpect(jsonPath("$.attachments[0]").value("x.pdf"));
+                .andExpect(jsonPath("$.attachments[0]").value("https://example.com/x.pdf"));
     }
 
     @Test
@@ -545,6 +545,129 @@ class TaskApiTest extends IntegrationTestBase {
         mockMvc.perform(postAs(user, "/tasks", taskJson("").replace(periodId, periodTwo)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("INVALID_TASK"));
+    }
+
+    // --- request bounds ------------------------------------------------------------------
+
+    private String createWith(String field, String jsonValue) {
+        return taskJson("").replaceFirst("\\{", "{\"" + field + "\":" + jsonValue.replace("$", "\\$") + ",");
+    }
+
+    private static String quoted(int length) {
+        return "\"" + "x".repeat(length) + "\"";
+    }
+
+    private static String listOf(int count, String element) {
+        return "[" + String.join(",", java.util.Collections.nCopies(count, element)) + "]";
+    }
+
+    @Test
+    void titleAcceptsTheBoundaryAndRejectsOneMore() throws Exception {
+        mockMvc.perform(postAs(user, "/tasks", taskJson("").replace("\"Essay\"", quoted(255))))
+                .andExpect(status().isCreated());
+        mockMvc.perform(postAs(user, "/tasks", taskJson("").replace("\"Essay\"", quoted(256))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void descriptionIsBoundedToFiveThousandCharacters() throws Exception {
+        mockMvc.perform(postAs(user, "/tasks", createWith("description", quoted(5000))))
+                .andExpect(status().isCreated());
+        mockMvc.perform(postAs(user, "/tasks", createWith("description", quoted(5001))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.details[*].field", hasItem("description")));
+    }
+
+    @Test
+    void listsAreBoundedInCountAndElementLength() throws Exception {
+        mockMvc.perform(postAs(user, "/tasks", createWith("tags", listOf(50, "\"t\""))))
+                .andExpect(status().isCreated());
+        mockMvc.perform(postAs(user, "/tasks", createWith("tags", listOf(51, "\"t\""))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+        mockMvc.perform(postAs(user, "/tasks", createWith("tags", "[" + quoted(100) + "]")))
+                .andExpect(status().isCreated());
+        mockMvc.perform(postAs(user, "/tasks", createWith("tags", "[" + quoted(101) + "]")))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(postAs(user, "/tasks", taskJson("").replace("\"essay\"", "\"group-work\"")
+                        .replaceFirst("\\{", "{\"groupMembers\":" + listOf(51, "\"m\"") + ",")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+        mockMvc.perform(postAs(user, "/tasks", createWith("attachments", listOf(51, "\"https://e.com/a\""))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void nullAndBlankListElementsAreValidationErrors() throws Exception {
+        for (String field : new String[]{"tags", "attachments"}) {
+            mockMvc.perform(postAs(user, "/tasks", createWith(field, "[\"a\",null]")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+            mockMvc.perform(postAs(user, "/tasks", createWith(field, "[\"  \"]")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+        }
+        String taskId = createTask();
+        mockMvc.perform(patchJson("/tasks/" + taskId, "{\"tags\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void attachmentsMustBeHttpUrlsOnCreateAndPatch() throws Exception {
+        String longUrl = "https://example.com/" + "a".repeat(2048 - "https://example.com/".length());
+        mockMvc.perform(postAs(user, "/tasks", createWith("attachments", "[\"" + longUrl + "\"]")))
+                .andExpect(status().isCreated());
+        mockMvc.perform(postAs(user, "/tasks", createWith("attachments", "[\"" + longUrl + "a\"]")))
+                .andExpect(status().isBadRequest());
+        String taskId = createTask();
+
+        for (String bad : new String[]{"javascript:alert(1)", "data:text/html,x", "ftp://h/f", "http://"}) {
+            mockMvc.perform(postAs(user, "/tasks", createWith("attachments", "[\"" + bad + "\"]")))
+                    .andExpect(status().isBadRequest());
+            mockMvc.perform(patchJson("/tasks/" + taskId, "{\"attachments\":[\"" + bad + "\"]}"))
+                    .andExpect(status().isBadRequest());
+        }
+        mockMvc.perform(patchJson("/tasks/" + taskId, "{\"attachments\":[\"https://example.com/a.pdf\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.attachments[0]").value("https://example.com/a.pdf"));
+    }
+
+    @Test
+    void patchBoundsMirrorCreate() throws Exception {
+        String taskId = createTask();
+
+        mockMvc.perform(patchJson("/tasks/" + taskId, "{\"title\":" + quoted(256) + "}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(patchJson("/tasks/" + taskId, "{\"description\":" + quoted(5001) + "}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(patchJson("/tasks/" + taskId, "{\"tags\":" + listOf(51, "\"t\"") + "}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(patchJson("/tasks/" + taskId, "{\"courseId\":" + quoted(37) + "}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void searchAndIdFiltersAreBounded() throws Exception {
+        mockMvc.perform(getAs(user, "/tasks").param("search", "x".repeat(100))).andExpect(status().isOk());
+        mockMvc.perform(getAs(user, "/tasks").param("search", "x".repeat(101)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+        mockMvc.perform(getAs(user, "/tasks").param("courseId", "x".repeat(36))).andExpect(status().isOk());
+        mockMvc.perform(getAs(user, "/tasks").param("courseId", "x".repeat(37))).andExpect(status().isBadRequest());
+        mockMvc.perform(getAs(user, "/tasks").param("periodId", "x".repeat(37))).andExpect(status().isBadRequest());
+        mockMvc.perform(getAs(user, "/tasks/" + "x".repeat(37)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+        mockMvc.perform(getAs(user, "/tasks/" + "x".repeat(36))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void createBodyIdsAreBoundedToThirtySixCharacters() throws Exception {
+        mockMvc.perform(postAs(user, "/tasks", taskJson("").replace(courseId, "c".repeat(37))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
     }
 
     // --- security ------------------------------------------------------------------------

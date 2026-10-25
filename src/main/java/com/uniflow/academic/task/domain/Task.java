@@ -6,8 +6,12 @@ import com.uniflow.academic.task.domain.exception.TaskNotModifiableException;
 import lombok.Builder;
 import lombok.Value;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -129,10 +133,14 @@ public class Task {
     private Task normalized() {
         return toBuilder()
                 .description(description == null ? "" : description)
-                .tags(tags == null ? List.of() : List.copyOf(tags))
-                .groupMembers(groupMembers == null ? List.of() : List.copyOf(groupMembers))
-                .attachments(attachments == null ? List.of() : List.copyOf(attachments))
+                .tags(copyOrEmpty(tags))
+                .groupMembers(copyOrEmpty(groupMembers))
+                .attachments(copyOrEmpty(attachments))
                 .build();
+    }
+
+    private static List<String> copyOrEmpty(List<String> values) {
+        return values == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(values));
     }
 
     private Task validated() {
@@ -150,10 +158,34 @@ public class Task {
         if (actualTimeHours != null && actualTimeHours < 0) {
             throw new InvalidTaskException("Actual time hours must be zero or positive");
         }
+        requireNoBlankElements("Tags", tags);
+        requireNoBlankElements("Group members", groupMembers);
+        requireNoBlankElements("Attachments", attachments);
+        attachments.forEach(Task::requireHttpUrl);
         if (!groupMembers.isEmpty() && !isGroupWork()) {
             throw new InvalidTaskException("Group members require a task of type 'group-work'");
         }
         return this;
+    }
+
+    private static void requireNoBlankElements(String name, List<String> values) {
+        if (values.stream().anyMatch(Task::isBlank)) {
+            throw new InvalidTaskException(name + " must not contain null or blank values");
+        }
+    }
+
+    private static void requireHttpUrl(String attachment) {
+        try {
+            URI uri = new URI(attachment);
+            String scheme = uri.getScheme();
+            boolean http = scheme != null && (scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"));
+            if (http && uri.getHost() != null) {
+                return;
+            }
+        } catch (URISyntaxException ignored) {
+            // reported below
+        }
+        throw new InvalidTaskException("Attachments must be http or https URLs");
     }
 
     private static boolean isBlank(String value) {

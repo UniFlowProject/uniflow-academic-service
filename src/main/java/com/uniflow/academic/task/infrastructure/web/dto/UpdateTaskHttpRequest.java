@@ -1,6 +1,7 @@
 package com.uniflow.academic.task.infrastructure.web.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -25,15 +26,18 @@ public class UpdateTaskHttpRequest {
 
     private final Map<String, Object> provided = new HashMap<>();
 
-    @Size(max = 255)
+    @Size(max = TaskPatterns.MAX_TITLE)
     @Pattern(regexp = TaskPatterns.NOT_BLANK, message = "must not be blank")
     private String title;
 
+    @Size(max = TaskPatterns.MAX_DESCRIPTION)
     private String description;
 
+    @Size(max = TaskPatterns.MAX_ID)
     @Pattern(regexp = TaskPatterns.NOT_BLANK, message = "must not be blank")
     private String courseId;
 
+    @Size(max = TaskPatterns.MAX_ID)
     @Pattern(regexp = TaskPatterns.NOT_BLANK, message = "must not be blank")
     private String periodId;
 
@@ -52,9 +56,15 @@ public class UpdateTaskHttpRequest {
     @PositiveOrZero
     private Integer actualTimeHours;
 
-    private List<String> tags;
-    private List<String> groupMembers;
-    private List<String> attachments;
+    @Size(max = TaskPatterns.MAX_LIST_SIZE)
+    private List<@NotBlank @Size(max = TaskPatterns.MAX_ELEMENT) String> tags;
+
+    @Size(max = TaskPatterns.MAX_LIST_SIZE)
+    private List<@NotBlank @Size(max = TaskPatterns.MAX_ELEMENT) String> groupMembers;
+
+    @Size(max = TaskPatterns.MAX_LIST_SIZE)
+    private List<@NotBlank @Size(max = TaskPatterns.MAX_ATTACHMENT)
+            @Pattern(regexp = TaskPatterns.HTTP_URL, message = "must be an http or https URL") String> attachments;
 
     public void setTitle(String title) {
         this.title = title;

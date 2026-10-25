@@ -13,18 +13,19 @@ import java.util.List;
 @Schema(description = "Request to create a task")
 public record CreateTaskHttpRequest(
         @Schema(description = "Task title", example = "Essay on cell biology")
-        @NotBlank @Size(max = 255)
+        @NotBlank @Size(max = TaskPatterns.MAX_TITLE)
         String title,
 
         @Schema(description = "Task description, empty by default")
+        @Size(max = TaskPatterns.MAX_DESCRIPTION)
         String description,
 
         @Schema(description = "Course the task belongs to")
-        @NotBlank
+        @NotBlank @Size(max = TaskPatterns.MAX_ID)
         String courseId,
 
         @Schema(description = "Period of that course")
-        @NotBlank
+        @NotBlank @Size(max = TaskPatterns.MAX_ID)
         String periodId,
 
         @Schema(description = "Due date (ISO-8601)", example = "2026-11-01T10:00:00Z")
@@ -44,11 +45,15 @@ public record CreateTaskHttpRequest(
         @NotNull @PositiveOrZero
         Integer estimatedTimeHours,
 
-        List<String> tags,
+        @Size(max = TaskPatterns.MAX_LIST_SIZE)
+        List<@NotBlank @Size(max = TaskPatterns.MAX_ELEMENT) String> tags,
 
         @Schema(description = "Only allowed for group-work tasks")
-        List<String> groupMembers,
+        @Size(max = TaskPatterns.MAX_LIST_SIZE)
+        List<@NotBlank @Size(max = TaskPatterns.MAX_ELEMENT) String> groupMembers,
 
-        List<String> attachments
+        @Size(max = TaskPatterns.MAX_LIST_SIZE)
+        List<@NotBlank @Size(max = TaskPatterns.MAX_ATTACHMENT)
+                @Pattern(regexp = TaskPatterns.HTTP_URL, message = "must be an http or https URL") String> attachments
 ) {
 }

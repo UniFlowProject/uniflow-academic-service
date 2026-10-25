@@ -9,6 +9,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
 import static com.uniflow.academic.task.TaskFixtures.NOW;
@@ -155,6 +156,40 @@ class TaskTest {
         assertThatThrownBy(() -> Task.create("id", "u1", blankTitle, NOW)).isInstanceOf(InvalidTaskException.class);
         assertThatThrownBy(() -> Task.create("id", "u1", missingCourse, NOW)).isInstanceOf(InvalidTaskException.class);
         assertThatThrownBy(() -> Task.create("id", "u1", missingDueDate, NOW)).isInstanceOf(InvalidTaskException.class);
+    }
+
+    @Test
+    void nullOrBlankListElementsAreInvalidNotAnError() {
+        for (List<String> bad : List.of(Arrays.asList("a", null), List.of(" "))) {
+            TaskDraft tags = new TaskDraft("Essay", null, "c1", "p1", NOW, TaskPriority.LOW,
+                    TaskType.ESSAY, 1, bad, null, null);
+            TaskDraft attachments = new TaskDraft("Essay", null, "c1", "p1", NOW, TaskPriority.LOW,
+                    TaskType.ESSAY, 1, null, null, bad);
+            assertThatThrownBy(() -> Task.create("id", "u1", tags, NOW)).isInstanceOf(InvalidTaskException.class);
+            assertThatThrownBy(() -> Task.create("id", "u1", attachments, NOW)).isInstanceOf(InvalidTaskException.class);
+        }
+    }
+
+    @Test
+    void attachmentsMustBeHttpOrHttpsUrls() {
+        for (String bad : List.of("javascript:alert(1)", "data:text/html,x", "ftp://host/file", "http://",
+                "file:///etc/passwd", "not a url", "//host/path")) {
+            TaskDraft draft = new TaskDraft("Essay", null, "c1", "p1", NOW, TaskPriority.LOW,
+                    TaskType.ESSAY, 1, null, null, List.of(bad));
+            assertThatThrownBy(() -> Task.create("id", "u1", draft, NOW))
+                    .as(bad).isInstanceOf(InvalidTaskException.class);
+        }
+        TaskDraft good = new TaskDraft("Essay", null, "c1", "p1", NOW, TaskPriority.LOW,
+                TaskType.ESSAY, 1, null, null, List.of("https://example.com/a.pdf", "HTTP://example.com/b"));
+        assertThat(Task.create("id", "u1", good, NOW).getAttachments()).hasSize(2);
+    }
+
+    @Test
+    void withChangesAlsoValidatesAttachments() {
+        Task task = aTask().build();
+        TaskChanges changes = TaskChanges.builder().attachments(List.of("javascript:alert(1)")).build();
+
+        assertThatThrownBy(() -> task.withChanges(changes, NOW)).isInstanceOf(InvalidTaskException.class);
     }
 
     @Test

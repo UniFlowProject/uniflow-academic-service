@@ -24,11 +24,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -48,9 +50,12 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "Tasks", description = "Task management endpoints")
 @SecurityRequirement(name = "bearer-jwt")
+@Validated
 public class TaskController {
 
     private static final int DEFAULT_LIMIT = 20;
+    private static final int MAX_ID = 36;
+    private static final int MAX_SEARCH = 100;
 
     private final CreateTaskCommand createTaskCommand;
     private final UpdateTaskCommand updateTaskCommand;
@@ -89,13 +94,13 @@ public class TaskController {
     public ResponseEntity<PagedResult<TaskHttpResponse>> listTasks(
             @RequestParam(required = false) List<String> status,
             @RequestParam(required = false) List<String> priority,
-            @RequestParam(required = false) String courseId,
-            @RequestParam(required = false) String periodId,
+            @RequestParam(required = false) @Size(max = MAX_ID) String courseId,
+            @RequestParam(required = false) @Size(max = MAX_ID) String periodId,
             @RequestParam(required = false) Instant dueDateFrom,
             @RequestParam(required = false) Instant dueDateTo,
             @RequestParam(name = "isOverdue", required = false) Boolean overdue,
             @RequestParam(name = "isDueSoon", required = false) Boolean dueSoon,
-            @RequestParam(required = false) String search,
+            @RequestParam(required = false) @Size(max = MAX_SEARCH) String search,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortOrder,
             @RequestParam(required = false) Integer page,
@@ -131,7 +136,7 @@ public class TaskController {
             @ApiResponse(responseCode = "404", description = "Task not found"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-    public ResponseEntity<TaskHttpResponse> getTask(@PathVariable String taskId, Authentication authentication) {
+    public ResponseEntity<TaskHttpResponse> getTask(@PathVariable @Size(max = MAX_ID) String taskId, Authentication authentication) {
         log.info("GET /tasks/{} - get task", taskId);
         return ResponseEntity.ok(mapper.toHttpResponse(getTaskByIdQuery.execute(taskId, authentication.getName())));
     }
@@ -148,7 +153,7 @@ public class TaskController {
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
     public ResponseEntity<TaskHttpResponse> updateTask(
-            @PathVariable String taskId,
+            @PathVariable @Size(max = MAX_ID) String taskId,
             @Valid @RequestBody UpdateTaskHttpRequest request,
             Authentication authentication
     ) {
@@ -168,7 +173,7 @@ public class TaskController {
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
     public ResponseEntity<TaskHttpResponse> changeStatus(
-            @PathVariable String taskId,
+            @PathVariable @Size(max = MAX_ID) String taskId,
             @Valid @RequestBody ChangeTaskStatusHttpRequest request,
             Authentication authentication
     ) {
@@ -185,7 +190,7 @@ public class TaskController {
             @ApiResponse(responseCode = "404", description = "Task not found"),
             @ApiResponse(responseCode = "401", description = "Unauthorized")
     })
-    public ResponseEntity<Void> deleteTask(@PathVariable String taskId, Authentication authentication) {
+    public ResponseEntity<Void> deleteTask(@PathVariable @Size(max = MAX_ID) String taskId, Authentication authentication) {
         log.info("DELETE /tasks/{} - delete task", taskId);
         deleteTaskCommand.execute(taskId, authentication.getName());
         return ResponseEntity.noContent().build();
