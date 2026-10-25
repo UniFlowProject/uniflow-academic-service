@@ -27,8 +27,6 @@ public interface TaskRepository {
      */
     boolean delete(String taskId, String userId);
 
-    boolean existsByCourseId(String courseId, String userId);
-
     /**
      * Load a task owned by the user; unknown or foreign ids yield {@link TaskNotFoundException}.
      */

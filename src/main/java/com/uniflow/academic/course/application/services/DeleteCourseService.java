@@ -2,6 +2,8 @@ package com.uniflow.academic.course.application.services;
 
 import com.uniflow.academic.course.application.ports.in.DeleteCourseCommand;
 import com.uniflow.academic.course.application.ports.out.CourseRepository;
+import com.uniflow.academic.course.application.ports.out.CourseTaskLookup;
+import com.uniflow.academic.course.domain.Course;
 import com.uniflow.academic.course.domain.exception.CourseDeletionException;
 import com.uniflow.academic.course.domain.exception.CourseNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -16,14 +18,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeleteCourseService implements DeleteCourseCommand {
 
     private final CourseRepository courseRepository;
+    private final CourseTaskLookup courseTaskLookup;
 
     @Override
     public void execute(String courseId, String userId) {
         log.info("Deleting course {} for user {}", courseId, userId);
 
-        courseRepository.requireOwned(courseId, userId);
+        Course course = courseRepository.requireOwned(courseId, userId);
 
-        if (courseRepository.hasAssociatedTasks(courseId)) {
+        if (courseTaskLookup.existsByCourseId(course.getId(), userId)) {
             throw new CourseDeletionException("Cannot delete course with associated tasks");
         }
 

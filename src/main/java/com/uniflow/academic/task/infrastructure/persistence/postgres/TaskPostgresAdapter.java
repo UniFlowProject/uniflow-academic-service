@@ -62,11 +62,6 @@ public class TaskPostgresAdapter implements TaskRepository {
         return jpaRepository.deleteByIdAndUserId(taskId, userId) > 0;
     }
 
-    @Override
-    public boolean existsByCourseId(String courseId, String userId) {
-        return jpaRepository.existsByCourseIdAndUserId(courseId, userId);
-    }
-
     private static TaskFilter normalize(TaskFilter filter) {
         return filter.toBuilder()
                 .search(blankToNull(filter.getSearch()))

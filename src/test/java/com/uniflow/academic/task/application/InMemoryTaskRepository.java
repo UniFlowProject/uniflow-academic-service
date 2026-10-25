@@ -48,9 +48,4 @@ class InMemoryTaskRepository implements TaskRepository {
     public boolean delete(String taskId, String userId) {
         return findById(taskId, userId).map(t -> tasks.remove(t.getId()) != null).orElse(false);
     }
-
-    @Override
-    public boolean existsByCourseId(String courseId, String userId) {
-        return findAllByUserId(userId).stream().anyMatch(t -> t.getCourseId().equals(courseId));
-    }
 }

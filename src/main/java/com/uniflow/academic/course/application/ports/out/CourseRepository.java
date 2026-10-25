@@ -31,8 +31,6 @@ public interface CourseRepository {
 
     boolean existsByPeriodId(String periodId, String userId);
 
-    boolean hasAssociatedTasks(String courseId);
-
     CourseStatisticsResponse getStatistics(String userId);
 
     /**

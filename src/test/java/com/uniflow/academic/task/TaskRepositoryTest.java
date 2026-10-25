@@ -345,15 +345,6 @@ class TaskRepositoryTest extends IntegrationTestBase {
     }
 
     @Test
-    void existsByCourseIsScopedToTheUser() {
-        save("a");
-
-        assertThat(repository.existsByCourseId(courseId, user)).isTrue();
-        assertThat(repository.existsByCourseId(courseId, newUserId())).isFalse();
-        assertThat(repository.existsByCourseId("missing", user)).isFalse();
-    }
-
-    @Test
     void databaseRejectsADeletedCourseWithTasks() {
         save("a");
 

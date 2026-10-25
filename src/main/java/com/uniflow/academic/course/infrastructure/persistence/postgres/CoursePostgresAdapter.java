@@ -96,12 +96,6 @@ public class CoursePostgresAdapter implements CourseRepository {
     }
 
     @Override
-    public boolean hasAssociatedTasks(String courseId) {
-        // Tasks module not implemented yet.
-        return false;
-    }
-
-    @Override
     public CourseStatisticsResponse getStatistics(String userId) {
         List<CourseEntity> entities = jpaRepository.findByUserId(userId);
         if (entities.isEmpty()) {
