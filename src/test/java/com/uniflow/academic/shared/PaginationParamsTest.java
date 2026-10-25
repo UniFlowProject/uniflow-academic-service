@@ -30,4 +30,11 @@ class PaginationParamsTest {
         assertThatThrownBy(() -> PaginationParams.of(1, 101)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new PaginationParams(1, 101)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void defaultLimitCanBeOverriddenPerResource() {
+        assertThat(PaginationParams.of(null, null, 20).limit()).isEqualTo(20);
+        assertThat(PaginationParams.of(2, 5, 20).limit()).isEqualTo(5);
+        assertThatThrownBy(() -> PaginationParams.of(1, 101, 20)).isInstanceOf(IllegalArgumentException.class);
+    }
 }

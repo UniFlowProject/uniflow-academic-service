@@ -19,9 +19,13 @@ public record PaginationParams(int page, int limit) {
     }
 
     public static PaginationParams of(Integer page, Integer limit) {
+        return of(page, limit, DEFAULT_LIMIT);
+    }
+
+    public static PaginationParams of(Integer page, Integer limit, int defaultLimit) {
         return new PaginationParams(
                 page == null ? DEFAULT_PAGE : page,
-                limit == null ? DEFAULT_LIMIT : limit
+                limit == null ? defaultLimit : limit
         );
     }
 
