@@ -9,3 +9,8 @@ mvnw.cmd
 .gitignore
 .gitattributes
 /*.json
+docker-compose*.yml
+docker/
+scripts/
+terraform/
+.env*

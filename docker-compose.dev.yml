@@ -1,0 +1,88 @@
+# Local development stack: app + Postgres + a fake OIDC issuer standing in for Cognito.
+# DEV ONLY: every value below is a throwaway default. Never use the mock issuer outside local development.
+#
+#   docker compose -f docker-compose.dev.yml up -d --build
+#   TOKEN=$(scripts/dev-token.sh user-a)
+name: uniflow-academic-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-uniflow_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Issues access-token-shaped JWTs (token_use=access, client_id=local-dev-client).
+  # The `sub` follows the requested scope: user-a -> user-a, user-b -> user-b, anything else -> dev-user.
+  mock-oauth:
+    image: ghcr.io/navikt/mock-oauth2-server:6.1.3
+    environment:
+      JSON_CONFIG_PATH: /config/config.json
+    volumes:
+      - ./docker/mock-oauth2/config.json:/config/config.json:ro
+    ports:
+      - "${MOCK_OAUTH_PORT:-8081}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -T 3 --spider http://localhost:8080/default/.well-known/openid-configuration || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-oauth:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-uniflow_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      # Must equal the `iss` claim of the issued tokens. The mock derives it from the Host header of the
+      # token request, so tokens must be requested through mock-oauth:8080 (see the `token` service).
+      COGNITO_ISSUER_URI: http://mock-oauth:8080/default
+      COGNITO_ALLOWED_CLIENT_IDS: local-dev-client
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      LOGGING_LEVEL_COM_UNIFLOW: DEBUG
+      # To try real reminders set REMINDER_SCHEDULER=eventbridge plus REMINDER_QUEUE_ARN, REMINDER_ROLE_ARN,
+      # AWS_REGION and AWS credentials (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN).
+      REMINDER_SCHEDULER: noop
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+    ports:
+      - "${APP_PORT:-3001}:3001"
+
+  # Helper: prints only an access token on stdout. Run it from inside the compose network so `iss` matches.
+  #   TOKEN=$(docker compose -f docker-compose.dev.yml run --rm -e TOKEN_USER=user-a token)
+  token:
+    image: curlimages/curl:8.11.1
+    profiles: [tools]
+    depends_on:
+      mock-oauth:
+        condition: service_healthy
+    environment:
+      TOKEN_USER: dev-user
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        curl -sf http://mock-oauth:8080/default/token
+        -d grant_type=client_credentials -d client_id=local-dev-client -d client_secret=dev-secret
+        --data-urlencode "scope=$${TOKEN_USER}"
+        | sed -n 's/.*"access_token" *: *"\([^"]*\)".*/\1/p'
+
+volumes:
+  postgres-data:

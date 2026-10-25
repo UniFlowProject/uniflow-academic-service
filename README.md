@@ -74,6 +74,80 @@ export COGNITO_ALLOWED_CLIENT_IDS=your-app-client-id
 
 Flyway aplica `db/migration/V1__baseline.sql` y `V2__tasks.sql` (esquema `academic`) al arrancar; Hibernate solo valida (`ddl-auto: validate`).
 
+## Desarrollo local con Docker
+
+`docker-compose.dev.yml` levanta el servicio completo en local: la app, PostgreSQL y un emisor OIDC falso que reemplaza a Cognito. Solo para desarrollo.
+
+Requisitos: Docker con Compose v2 (BuildKit) y `curl`.
+
+| Servicio | Qué es | Puerto en el host (variable) |
+|---|---|---|
+| `app` | Este servicio, construido con el `Dockerfile` | `3001` (`APP_PORT`) |
+| `postgres` | PostgreSQL 16; Flyway crea el esquema `academic` al arrancar | `5434` (`POSTGRES_PORT`) |
+| `mock-oauth` | [mock-oauth2-server](https://github.com/navikt/mock-oauth2-server) configurado en `docker/mock-oauth2/config.json` | `8081` (`MOCK_OAUTH_PORT`) |
+| `token` | Utilidad (perfil `tools`) que imprime un access token | - |
+
+Los puertos se cambian con variables, p. ej. `APP_PORT=3002 POSTGRES_PORT=5440 docker compose -f docker-compose.dev.yml up -d --build`. Las credenciales de la base de datos (`DB_NAME`, `DB_USER`, `DB_PASSWORD`) también se pueden sobreescribir.
+
+```bash
+# Levantar todo (la primera vez construye la imagen)
+docker compose -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.dev.yml logs -f app
+
+# Obtener tokens; el sub es el nombre pasado: user-a, user-b o dev-user (por defecto)
+TOKEN_A=$(scripts/dev-token.sh user-a)
+TOKEN_B=$(scripts/dev-token.sh user-b)
+# Equivalente sin el script:
+# TOKEN_A=$(docker compose -f docker-compose.dev.yml run --rm -q -e TOKEN_USER=user-a token)
+
+# Parar y borrar contenedores y datos
+docker compose -f docker-compose.dev.yml down -v
+```
+
+Ejemplo del flujo periodo -> curso -> tarea (los ids van en las respuestas):
+
+```bash
+H="Authorization: Bearer $TOKEN_A"; J="Content-Type: application/json"
+curl -s localhost:3001/health
+curl -s -H "$H" -H "$J" -d '{"name":"II Semestre","type":"second-semester","year":2026,"startDate":"2026-08-03","endDate":"2026-12-12"}' localhost:3001/periods
+curl -s -H "$H" -H "$J" -d '{"name":"Diseño","code":"IC-5402","professor":"M. R.","credits":3,"color":"#3b82f6","periodId":"<periodId>"}' localhost:3001/courses
+curl -s -H "$H" -H "$J" -d '{"title":"Ensayo","courseId":"<courseId>","periodId":"<periodId>","dueDate":"2026-11-01T10:00:00Z","priority":"high","type":"essay","estimatedTimeHours":4}' localhost:3001/tasks
+curl -s -H "$H" localhost:3001/tasks
+curl -s -H "$H" localhost:3001/tasks/stats
+
+# Aislamiento entre usuarios: user-b recibe 404 en el recurso de user-a y listas vacías
+curl -s -H "Authorization: Bearer $TOKEN_B" localhost:3001/tasks/<taskId>
+curl -s -H "Authorization: Bearer $TOKEN_B" localhost:3001/tasks
+```
+
+Swagger UI (habilitado solo en este compose): <http://localhost:3001/swagger-ui/index.html>. La especificación OpenAPI no declara un esquema de seguridad, por lo que Swagger UI no ofrece el botón **Authorize** y sus peticiones "Try it out" responden 401: úsalo para consultar el contrato y ejecuta las llamadas con `curl` y el token. Los tokens duran 1 hora.
+
+Cómo funciona la autenticación local: los tokens traen `token_use=access`, `client_id=local-dev-client` (el valor de `COGNITO_ALLOWED_CLIENT_IDS` en el compose) y `iss=http://mock-oauth:8080/default`. El emisor deriva `iss` del host con el que se pidió el token, por eso los tokens se piden desde dentro de la red de Compose (servicio `token` / `scripts/dev-token.sh`) y no con `localhost:8081`. Un token pedido a `localhost:8081` tiene otro `iss` y la app del compose lo rechaza con 401.
+
+> **Importante:** el emisor falso firma con claves efímeras y entrega tokens a cualquiera sin autenticar. Es solo para desarrollo local; nunca lo uses (ni `COGNITO_ISSUER_URI` apuntando a él) fuera de tu máquina.
+
+Para activar recordatorios reales en el compose cambia `REMINDER_SCHEDULER=eventbridge` y define `REMINDER_QUEUE_ARN`, `REMINDER_ROLE_ARN`, `AWS_REGION` y credenciales de AWS en el servicio `app`.
+
+### Solo Postgres y mock-oauth, con la app en el host
+
+```bash
+docker compose -f docker-compose.dev.yml up -d postgres mock-oauth
+
+# En el host el emisor es localhost:8081, así que el issuer y los tokens deben usar ese mismo host
+export DB_PORT=5434 DB_USER=postgres DB_PASSWORD=password
+export COGNITO_ISSUER_URI=http://localhost:8081/default
+export COGNITO_ALLOWED_CLIENT_IDS=local-dev-client
+./mvnw spring-boot:run
+
+# Token pedido directamente al puerto publicado (el scope define el sub)
+TOKEN=$(curl -s localhost:8081/default/token -d grant_type=client_credentials \
+  -d client_id=local-dev-client -d client_secret=dev --data-urlencode scope=user-a \
+  | sed -n 's/.*"access_token" *: *"\([^"]*\)".*/\1/p')
+curl -s -H "Authorization: Bearer $TOKEN" localhost:8080/periods
+```
+
+La app en el host escucha en `8080` por defecto. No mezcles ambos modos: los tokens de `scripts/dev-token.sh` (`iss` con `mock-oauth:8080`) no sirven para la app del host, y viceversa.
+
 ## Endpoints
 
 Públicos: `/health` (y `/swagger-ui/**`, `/v3/api-docs/**` solo si springdoc está habilitado). El resto requiere `Authorization: Bearer <jwt>`.
