@@ -27,15 +27,42 @@ Microservicio de datos académicos. Modelo: `USER (sub de Cognito) -> PERIOD -> 
 | `REMINDER_QUEUE_ARN` | con `eventbridge` | - | ARN de la cola SQS destino (la consume la lambda `process_expiration`) |
 | `REMINDER_ROLE_ARN` | con `eventbridge` | - | ARN del rol que EventBridge Scheduler asume para enviar a la cola |
 | `REMINDER_LEAD_TIME_HOURS` | no | `24` | Horas de antelación del recordatorio respecto a `dueDate` (>= 0) |
+| `REMINDER_API_TIMEOUT` | no | `5s` | Tiempo máximo total de una llamada a EventBridge Scheduler (incluye reintentos) |
+| `REMINDER_API_ATTEMPT_TIMEOUT` | no | `2s` | Tiempo máximo de cada intento |
+| `REMINDER_MAX_RETRIES` | no | `2` | Reintentos tras el primer intento (>= 0) |
+| `REMINDER_CONNECT_TIMEOUT` / `REMINDER_SOCKET_TIMEOUT` | no | `1s` / `2s` | Timeouts de conexión y lectura del cliente HTTP |
 | `SPRINGDOC_SWAGGER_UI_ENABLED` / `SPRINGDOC_API_DOCS_ENABLED` | no | `false` | Swagger/OpenAPI desactivado por defecto; para verlo en local: `SPRINGDOC_SWAGGER_UI_ENABLED=true SPRINGDOC_API_DOCS_ENABLED=true` |
 
 Las variables también se pueden definir en un archivo `.env` local (spring-dotenv).
 
 ### Recordatorios de tareas
 
-Con `REMINDER_SCHEDULER=eventbridge` el servicio crea un schedule de un solo uso por tarea (`at(...)` en UTC, `dueDate` menos `REMINDER_LEAD_TIME_HOURS`) que se borra solo al dispararse. El cliente del SDK de AWS toma región (`AWS_REGION`) y credenciales de la cadena por defecto (rol de la tarea en ECS). Si faltan los ARN, el arranque falla. Los recordatorios son de mejor esfuerzo: un fallo del scheduler se registra y no afecta la operación, y se programan/cancelan después del commit de la base de datos.
+Con `REMINDER_SCHEDULER=eventbridge` el servicio crea un schedule de un solo uso por tarea (`at(...)` en UTC, `dueDate` menos `REMINDER_LEAD_TIME_HOURS`) que se borra solo al dispararse. El cliente del SDK de AWS toma región (`AWS_REGION`) y credenciales de la cadena por defecto (rol de la tarea en ECS). Si faltan los ARN, el arranque falla. Los recordatorios son de mejor esfuerzo: se programan/cancelan después del commit de la base de datos y en un pool pequeño y acotado (2-4 hilos, cola de 100), fuera del hilo de la petición y sin retener la conexión a la base de datos. Un fallo se registra a nivel `ERROR` (tarea y clase de la excepción) y no afecta la operación; si el pool está saturado el recordatorio se descarta con un `ERROR` (no hay reintento ni outbox, y no hay métricas porque el servicio no incluye Micrometer). Se reprograman al cambiar el título o la fecha de entrega (el mensaje lleva `taskTitle`) y se cancelan al pasar a `done`/`cancelled` o al borrar la tarea.
 
-Permisos del rol de la tarea: `scheduler:CreateSchedule`, `scheduler:UpdateSchedule` y `scheduler:DeleteSchedule` sobre el grupo configurado, e `iam:PassRole` sobre `REMINDER_ROLE_ARN`.
+Se recomienda un grupo de schedules dedicado (`REMINDER_GROUP_NAME`) en lugar de `default`.
+
+Permisos mínimos del rol de la tarea de ECS:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["scheduler:CreateSchedule", "scheduler:UpdateSchedule", "scheduler:DeleteSchedule"],
+      "Resource": "arn:aws:scheduler:<region>:<account>:schedule/<group>/task-reminder-*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "<REMINDER_ROLE_ARN>",
+      "Condition": { "StringEquals": { "iam:PassedToService": "scheduler.amazonaws.com" } }
+    }
+  ]
+}
+```
+
+El rol que asume EventBridge Scheduler (`REMINDER_ROLE_ARN`, confía en `scheduler.amazonaws.com`) solo necesita `sqs:SendMessage` sobre la cola `REMINDER_QUEUE_ARN`.
 
 ## Ejecutar
 
@@ -53,10 +80,14 @@ Públicos: `/health` (y `/swagger-ui/**`, `/v3/api-docs/**` solo si springdoc es
 
 - `/periods` (CRUD, `/periods/current`, `/periods/stats`, `PATCH /periods/{periodId}/activate`, `GET /periods/{periodId}/courses`)
 - `/courses` (CRUD, `POST /courses/validate-code`), `GET /stats/courses`. Borrar un curso con tareas responde 409 `COURSE_HAS_TASKS`.
-- `/tasks`: `POST /tasks`, `GET /tasks` (filtros `status`, `priority`, `courseId`, `periodId`, `dueDateFrom`, `dueDateTo`, `isOverdue`, `isDueSoon`, `search`; `sortBy` = `dueDate|priority|status|createdAt`, `sortOrder` = `asc|desc`, `page`, `limit` por defecto 20), `GET /tasks/stats`, `GET /tasks/{taskId}`, `PATCH /tasks/{taskId}` (parcial), `PATCH /tasks/{taskId}/status`, `DELETE /tasks/{taskId}`. Una tarea ajena o inexistente responde 404 `TASK_NOT_FOUND`; las tareas `done`/`cancelled` no se pueden modificar ni cambiar de estado (409 `TASK_NOT_MODIFIABLE`), pero sí se pueden borrar (en cualquier estado).
+- `/tasks`: `POST /tasks`, `GET /tasks` (filtros `status`, `priority`, `courseId`, `periodId`, `dueDateFrom`, `dueDateTo`, `isOverdue`, `isDueSoon`, `search`; `sortBy` = `dueDate|priority|status|createdAt`, `sortOrder` = `asc|desc`, `page`, `limit` por defecto 20), `GET /tasks/stats`, `GET /tasks/{taskId}`, `PATCH /tasks/{taskId}` (parcial), `PATCH /tasks/{taskId}/status`, `DELETE /tasks/{taskId}`. Una tarea ajena o inexistente responde 404 `TASK_NOT_FOUND`; una escritura concurrente sobre la misma tarea responde 409 `TASK_CONFLICT` (bloqueo optimista con `version`; recargar y reintentar); las tareas `done`/`cancelled` no se pueden modificar ni cambiar de estado (409 `TASK_NOT_MODIFIABLE`), pero sí se pueden borrar (en cualquier estado).
 
 Formato de error: `{ "error": { "code", "message", "details": [ { "field", "message" } ] } }`.
 Formato de listas paginadas: `{ "items": [...], "pageInfo": { "total", "page", "limit", "totalPages", "hasNext", "hasPrev" } }`.
+
+### Límites de las peticiones
+
+`title` <= 255 caracteres, `description` <= 5000, `tags`/`groupMembers`/`attachments` <= 50 elementos (cada elemento no vacío; <= 100 caracteres, <= 2048 en `attachments`), `courseId`/`periodId`/`taskId` <= 36, `search` <= 100. Los `attachments` deben ser URLs `http`/`https`. Spring no limita el tamaño del cuerpo JSON: hace falta un límite de cuerpo en el API Gateway / balanceador.
 
 ## Tests
 
