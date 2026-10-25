@@ -5,6 +5,7 @@ import com.uniflow.academic.shared.application.PaginationParams;
 import com.uniflow.academic.task.application.ports.out.TaskRepository;
 import com.uniflow.academic.task.application.ports.out.dto.TaskFilter;
 import com.uniflow.academic.task.domain.Task;
+import com.uniflow.academic.task.domain.TaskStats;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -33,14 +34,18 @@ class InMemoryTaskRepository implements TaskRepository {
     public PagedResult<Task> search(String userId, TaskFilter filter, PaginationParams pagination, Instant now) {
         lastFilter = filter;
         lastNow = now;
-        List<Task> mine = findAllByUserId(userId);
+        List<Task> mine = userTasks(userId);
         int from = Math.min((pagination.page() - 1) * pagination.limit(), mine.size());
         int to = Math.min(from + pagination.limit(), mine.size());
         return PagedResult.of(mine.subList(from, to), mine.size(), pagination.page(), pagination.limit());
     }
 
     @Override
-    public List<Task> findAllByUserId(String userId) {
+    public TaskStats stats(String userId, Instant now) {
+        return TaskStats.from(userTasks(userId), now);
+    }
+
+    private List<Task> userTasks(String userId) {
         return tasks.values().stream().filter(t -> t.getUserId().equals(userId)).toList();
     }
 

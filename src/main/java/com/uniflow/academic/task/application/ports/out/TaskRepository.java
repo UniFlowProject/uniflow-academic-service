@@ -4,10 +4,10 @@ import com.uniflow.academic.shared.application.PagedResult;
 import com.uniflow.academic.shared.application.PaginationParams;
 import com.uniflow.academic.task.application.ports.out.dto.TaskFilter;
 import com.uniflow.academic.task.domain.Task;
+import com.uniflow.academic.task.domain.TaskStats;
 import com.uniflow.academic.task.domain.exception.TaskNotFoundException;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 
 public interface TaskRepository {
@@ -19,8 +19,8 @@ public interface TaskRepository {
 
     PagedResult<Task> search(String userId, TaskFilter filter, PaginationParams pagination, Instant now);
 
-    /** Every task of the user, unpaginated. */
-    List<Task> findAllByUserId(String userId);
+    /** Counts over all the tasks of the user; overdue is evaluated against {@code now}. */
+    TaskStats stats(String userId, Instant now);
 
     /**
      * @return true if a row was deleted, false if the user does not own that task

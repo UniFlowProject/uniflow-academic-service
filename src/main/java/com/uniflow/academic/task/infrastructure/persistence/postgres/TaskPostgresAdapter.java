@@ -5,6 +5,8 @@ import com.uniflow.academic.shared.application.PaginationParams;
 import com.uniflow.academic.task.application.ports.out.TaskRepository;
 import com.uniflow.academic.task.application.ports.out.dto.TaskFilter;
 import com.uniflow.academic.task.domain.Task;
+import com.uniflow.academic.task.domain.TaskStats;
+import com.uniflow.academic.task.domain.TaskStatus;
 import com.uniflow.academic.task.domain.exception.TaskNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.Optional;
 
 @Slf4j
@@ -69,8 +73,26 @@ public class TaskPostgresAdapter implements TaskRepository {
     }
 
     @Override
-    public List<Task> findAllByUserId(String userId) {
-        return jpaRepository.findByUserId(userId).stream().map(mapper::toDomain).toList();
+    @Transactional(readOnly = true)
+    public TaskStats stats(String userId, Instant now) {
+        Map<String, Long> byStatus = toMap(jpaRepository.countByStatus(userId));
+        long total = byStatus.values().stream().mapToLong(Long::longValue).sum();
+        long completed = byStatus.getOrDefault(TaskStatus.DONE.value(), 0L);
+        long closed = completed + byStatus.getOrDefault(TaskStatus.CANCELLED.value(), 0L);
+        return new TaskStats(
+                total,
+                completed,
+                total - closed,
+                jpaRepository.countOverdue(userId, now),
+                byStatus,
+                toMap(jpaRepository.countByPriority(userId)),
+                toMap(jpaRepository.countByType(userId)),
+                toMap(jpaRepository.countByCourse(userId))
+        );
+    }
+
+    private static Map<String, Long> toMap(List<Object[]> rows) {
+        return rows.stream().collect(Collectors.toMap(row -> (String) row[0], row -> (Long) row[1]));
     }
 
     @Override

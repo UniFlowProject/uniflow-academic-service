@@ -9,6 +9,7 @@ import com.uniflow.academic.task.application.ports.out.dto.TaskFilter;
 import com.uniflow.academic.task.application.ports.out.dto.TaskSortField;
 import com.uniflow.academic.task.domain.Task;
 import com.uniflow.academic.task.domain.TaskPriority;
+import com.uniflow.academic.task.domain.TaskStats;
 import com.uniflow.academic.task.domain.TaskStatus;
 import com.uniflow.academic.task.domain.TaskType;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +20,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 
@@ -103,7 +105,7 @@ class TaskRepositoryTest extends IntegrationTestBase {
         String id = saved.getId();
 
         assertThat(repository.findById(id, user)).get().extracting(Task::getTitle).isEqualTo("renamed");
-        assertThat(repository.findAllByUserId(user)).hasSize(1);
+        assertThat(search(filter().build()).items()).hasSize(1);
     }
 
     @Test
@@ -130,13 +132,62 @@ class TaskRepositoryTest extends IntegrationTestBase {
     }
 
     @Test
-    void findAllReturnsEveryTaskOfTheUserBeyondTheMaxPageSize() {
-        for (int n = 0; n < 120; n++) {
-            save(newId());
+    void statsCountEveryStatusPriorityTypeAndCourse() throws Exception {
+        String otherCourse = createCourse(user, periodId, "FIS-101");
+        save("done", b -> b.status(TaskStatus.DONE));
+        save("cancelled", b -> b.status(TaskStatus.CANCELLED).dueDate(NOW.minus(Duration.ofDays(1))));
+        save("late", b -> b.dueDate(NOW.minus(Duration.ofDays(1))).priority(TaskPriority.URGENT));
+        save("review", b -> b.status(TaskStatus.IN_REVIEW).type(TaskType.EXAM));
+        repository.save(aTask().id("other").userId(user).courseId(otherCourse).periodId(periodId).build());
+
+        TaskStats stats = repository.stats(user, NOW);
+
+        assertThat(stats.total()).isEqualTo(5);
+        assertThat(stats.completed()).isEqualTo(1);
+        assertThat(stats.pending()).isEqualTo(3);
+        assertThat(stats.overdue()).isEqualTo(1);
+        assertThat(stats.byStatus()).isEqualTo(Map.of("todo", 2L, "done", 1L, "cancelled", 1L, "in-review", 1L));
+        assertThat(stats.byPriority()).isEqualTo(Map.of("medium", 4L, "urgent", 1L));
+        assertThat(stats.byType()).isEqualTo(Map.of("assignment", 4L, "exam", 1L));
+        assertThat(stats.byCourse()).isEqualTo(Map.of(courseId, 4L, otherCourse, 1L));
+    }
+
+    @Test
+    void statsOfAUserWithoutTasksAreEmpty() {
+        TaskStats stats = repository.stats(newUserId(), NOW);
+
+        assertThat(stats.total()).isZero();
+        assertThat(stats.completed()).isZero();
+        assertThat(stats.pending()).isZero();
+        assertThat(stats.overdue()).isZero();
+        assertThat(stats.byStatus()).isEmpty();
+        assertThat(stats.byPriority()).isEmpty();
+        assertThat(stats.byType()).isEmpty();
+        assertThat(stats.byCourse()).isEmpty();
+    }
+
+    @Test
+    void statsCoverHundredsOfRowsAndStayScopedToTheUser() throws Exception {
+        String other = newUserId();
+        String otherPeriod = createPeriod(other, "P1");
+        String otherCourse = createCourse(other, otherPeriod, "MAT-101");
+        for (int n = 0; n < 250; n++) {
+            TaskStatus status = n % 5 == 0 ? TaskStatus.DONE : TaskStatus.TODO;
+            Instant due = n % 2 == 0 ? NOW.minus(Duration.ofDays(1)) : NOW.plus(Duration.ofDays(1));
+            save(newId(), b -> b.status(status).dueDate(due));
+        }
+        for (int n = 0; n < 100; n++) {
+            repository.save(aTask().id(newId()).userId(other).courseId(otherCourse).periodId(otherPeriod).build());
         }
 
-        assertThat(repository.findAllByUserId(user)).hasSize(120);
-        assertThat(repository.findAllByUserId(newUserId())).isEmpty();
+        TaskStats stats = repository.stats(user, NOW);
+
+        assertThat(stats.total()).isEqualTo(250);
+        assertThat(stats.completed()).isEqualTo(50);
+        assertThat(stats.pending()).isEqualTo(200);
+        assertThat(stats.overdue()).isEqualTo(100);
+        assertThat(stats.byCourse()).isEqualTo(Map.of(courseId, 250L));
+        assertThat(repository.stats(other, NOW).total()).isEqualTo(100);
     }
 
     @Test

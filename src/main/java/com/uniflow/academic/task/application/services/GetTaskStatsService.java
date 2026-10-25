@@ -19,6 +19,6 @@ public class GetTaskStatsService implements GetTaskStatsQuery {
 
     @Override
     public TaskStats execute(String userId) {
-        return TaskStats.from(taskRepository.findAllByUserId(userId), clock.instant());
+        return taskRepository.stats(userId, clock.instant());
     }
 }
