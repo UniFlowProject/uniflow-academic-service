@@ -19,6 +19,25 @@ class PagedResultTest {
     }
 
     @Test
+    void pageBeyondAnEmptyResultHasNoPreviousPage() {
+        PagedResult.PageInfo info = PagedResult.of(List.of(), 0, 2, 20).pageInfo();
+
+        assertThat(info.totalPages()).isZero();
+        assertThat(info.hasNext()).isFalse();
+        assertThat(info.hasPrev()).isFalse();
+    }
+
+    @Test
+    void pageBeyondTheLastKeepsAPreviousPage() {
+        assertThat(PagedResult.of(List.of(), 5, 4, 2).pageInfo().hasPrev()).isTrue();
+    }
+
+    @Test
+    void firstPageHasNoPreviousPage() {
+        assertThat(PagedResult.of(List.of(), 45, 1, 20).pageInfo().hasPrev()).isFalse();
+    }
+
+    @Test
     void emptyResultHasNoPages() {
         PagedResult.PageInfo info = PagedResult.of(List.of(), 0, 1, 20).pageInfo();
 

@@ -287,6 +287,38 @@ class TaskRepositoryTest extends IntegrationTestBase {
     }
 
     @Test
+    void searchMatchesTermsSpanningTitleAndDescription() {
+        save("a", b -> b.title("Calculus").description("homework"));
+        save("b", b -> b.title("Other").description("nothing"));
+
+        assertThat(ids(search(filter().search("calculus homework").build()))).containsExactly("a");
+        assertThat(ids(search(filter().search("us ho").build()))).containsExactly("a");
+        assertThat(ids(search(filter().search("calculushomework").build()))).isEmpty();
+    }
+
+    @Test
+    void searchKeepsLeadingAndTrailingSpacesOfTheTerm() {
+        save("a", b -> b.title("Read").description("chapter"));
+        save("b", b -> b.title("Reader").description(""));
+        save("c", b -> b.title("Ready").description("").title("xchapter"));
+
+        assertThat(ids(search(filter().search(" chapter").build()))).containsExactly("a");
+        assertThat(ids(search(filter().search("read ").build()))).containsExactly("a");
+        assertThat(ids(search(filter().search("reader ").build()))).containsExactly("b");
+    }
+
+    @Test
+    void searchIsCaseInsensitiveForNonAsciiText() {
+        save("a", b -> b.title("Ejercicio de ÁRBOLES").description("Año académico ÑANDÚ"));
+        save("b", b -> b.title("Otro"));
+
+        assertThat(ids(search(filter().search("árboles").build()))).containsExactly("a");
+        assertThat(ids(search(filter().search("ÁRBOLES").build()))).containsExactly("a");
+        assertThat(ids(search(filter().search("AÑO ACADÉMICO").build()))).containsExactly("a");
+        assertThat(ids(search(filter().search("ñandú").build()))).containsExactly("a");
+    }
+
+    @Test
     void searchTreatsLikeWildcardsAsLiterals() {
         save("percent", b -> b.title("100% done"));
         save("underscore", b -> b.title("snake_case"));

@@ -103,7 +103,7 @@ public class TaskPostgresAdapter implements TaskRepository {
 
     private static TaskFilter normalize(TaskFilter filter) {
         return filter.toBuilder()
-                .search(blankToNull(filter.getSearch()))
+                .search(filter.getSearch() == null || filter.getSearch().isBlank() ? null : filter.getSearch())
                 .courseId(blankToNull(filter.getCourseId()))
                 .periodId(blankToNull(filter.getPeriodId()))
                 .build();

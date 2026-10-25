@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Builds the filtered and ordered task query. Priority and status are sorted by rank (declaration
@@ -71,10 +72,9 @@ final class TaskSpecifications {
         }
         if (filter.getSearch() != null) {
             String pattern = likePattern(filter.getSearch());
-            predicates.add(cb.or(
-                    cb.like(cb.lower(root.get("title")), pattern, LIKE_ESCAPE),
-                    cb.like(cb.lower(root.get("description")), pattern, LIKE_ESCAPE)
-            ));
+            Expression<String> haystack = cb.lower(cb.concat(cb.concat(root.<String>get("title"), " "),
+                    root.<String>get("description")));
+            predicates.add(cb.like(haystack, pattern, LIKE_ESCAPE));
         }
         return predicates;
     }
@@ -124,7 +124,7 @@ final class TaskSpecifications {
     }
 
     private static String likePattern(String search) {
-        String escaped = search.toLowerCase()
+        String escaped = search.toLowerCase(Locale.ROOT)
                 .replace("\\", "\\\\")
                 .replace("%", "\\%")
                 .replace("_", "\\_");

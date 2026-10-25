@@ -19,7 +19,7 @@ public record PagedResult<T>(List<T> items, PageInfo pageInfo) {
         int totalPages = (int) Math.ceil((double) total / limit);
         return new PagedResult<>(
                 items,
-                new PageInfo(total, page, limit, totalPages, page < totalPages, page > 1)
+                new PageInfo(total, page, limit, totalPages, page < totalPages, page > 1 && totalPages > 0)
         );
     }
 
