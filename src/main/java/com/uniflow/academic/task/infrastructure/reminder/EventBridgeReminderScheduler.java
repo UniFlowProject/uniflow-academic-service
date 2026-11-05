@@ -24,14 +24,16 @@ import java.util.Map;
 
 /**
  * Each reminder is a one-time EventBridge schedule that delivers a small JSON message to an SQS
- * queue and deletes itself once it has fired. The message follows the contract of the
- * {@code process_expiration} consumer: {@code type}, {@code taskId} and {@code userId} are required,
- * {@code taskTitle} and {@code deadline} are used to build the notification text.
+ * queue and deletes itself once it has fired. The message satisfies both consumers of the queue:
+ * {@code process_expiration} requires {@code type}, {@code taskId} and {@code userId} and builds its
+ * text from {@code taskTitle} and {@code deadline}; {@code sendEmail} handles only the
+ * {@code task.due_reminder} type and requires {@code title} and {@code dueDate}, plus
+ * {@code leadHours} for the text. Title and due date are therefore sent under both names.
  */
 @Slf4j
 public class EventBridgeReminderScheduler implements ReminderScheduler {
 
-    static final String REMINDER_TYPE = "task-reminder";
+    static final String REMINDER_TYPE = "task.due_reminder";
 
     private static final String NAME_PREFIX = "task-reminder-";
     private static final String TIMEZONE = "UTC";
@@ -126,10 +128,13 @@ public class EventBridgeReminderScheduler implements ReminderScheduler {
     }
 
     private String payload(Task task) {
-        Map<String, String> message = new LinkedHashMap<>();
+        Map<String, Object> message = new LinkedHashMap<>();
         message.put("type", REMINDER_TYPE);
         message.put("taskId", task.getId());
         message.put("userId", task.getUserId());
+        message.put("title", task.getTitle());
+        message.put("dueDate", task.getDueDate().toString());
+        message.put("leadHours", leadTime.toHours());
         message.put("taskTitle", task.getTitle());
         message.put("deadline", task.getDueDate().toString());
         try {

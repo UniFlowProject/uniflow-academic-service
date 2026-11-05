@@ -86,10 +86,14 @@ class EventBridgeReminderSchedulerTest {
         JsonNode payload = json.readTree(request.target().input());
         List<String> keys = new ArrayList<>();
         payload.fieldNames().forEachRemaining(keys::add);
-        assertThat(keys).containsExactlyInAnyOrder("type", "taskId", "userId", "taskTitle", "deadline");
-        assertThat(payload.get("type").asText()).isEqualTo("task-reminder");
+        assertThat(keys).containsExactlyInAnyOrder(
+                "type", "taskId", "userId", "title", "dueDate", "leadHours", "taskTitle", "deadline");
+        assertThat(payload.get("type").asText()).isEqualTo("task.due_reminder");
         assertThat(payload.get("taskId").asText()).isEqualTo("t1");
         assertThat(payload.get("userId").asText()).isEqualTo("u1");
+        assertThat(payload.get("title").asText()).isEqualTo("Homework");
+        assertThat(payload.get("dueDate").asText()).isEqualTo(due.toString());
+        assertThat(payload.get("leadHours").asLong()).isEqualTo(24);
         assertThat(payload.get("taskTitle").asText()).isEqualTo("Homework");
         assertThat(payload.get("deadline").asText()).isEqualTo(due.toString());
     }
@@ -111,9 +115,13 @@ class EventBridgeReminderSchedulerTest {
         assertThat(payload.isObject()).isTrue();
         List<String> keys = new ArrayList<>();
         payload.fieldNames().forEachRemaining(keys::add);
-        assertThat(keys).containsExactlyInAnyOrder("type", "taskId", "userId", "taskTitle", "deadline");
-        payload.fields().forEachRemaining(field ->
-                assertThat(field.getValue().isTextual()).as(field.getKey() + " is a JSON string").isTrue());
+        assertThat(keys).containsExactlyInAnyOrder(
+                "type", "taskId", "userId", "title", "dueDate", "leadHours", "taskTitle", "deadline");
+        payload.fields().forEachRemaining(field -> {
+            if (!field.getKey().equals("leadHours")) {
+                assertThat(field.getValue().isTextual()).as(field.getKey() + " is a JSON string").isTrue();
+            }
+        });
         for (String required : List.of("type", "taskId", "userId")) {
             assertThat(payload.get(required).asText()).as("validate() needs truthy " + required).isNotEmpty();
         }
@@ -122,6 +130,28 @@ class EventBridgeReminderSchedulerTest {
         String text = "Tu tarea \"%s\" vence el %s.".formatted(
                 payload.get("taskTitle").asText(), payload.get("deadline").asText());
         assertThat(text).isEqualTo("Tu tarea \"Homework\" vence el 2026-10-26T12:00:00Z.");
+    }
+
+    /**
+     * Mirrors lambdas/sendEmail/index.mjs: it only handles type "task.due_reminder" and throws unless
+     * taskId, userId, title and dueDate are truthy; leadHours is interpolated into the subject and
+     * the text, and dueDate goes through {@code new Date(...)}, so it must be a parseable ISO instant.
+     */
+    @Test
+    void payloadMatchesWhatTheSendEmailLambdaConsumes() throws Exception {
+        EventBridgeReminderScheduler twelveHours = schedulerWithLeadTime(Duration.ofHours(12));
+        Instant due = NOW.plus(Duration.ofDays(3));
+
+        twelveHours.schedule(aTask().id("t1").userId("u1").title("Homework").dueDate(due).build());
+
+        JsonNode payload = json.readTree(created().target().input());
+        assertThat(payload.get("type").asText()).isEqualTo("task.due_reminder");
+        for (String required : List.of("taskId", "userId", "title", "dueDate")) {
+            assertThat(payload.path(required).asText()).as("sendDueReminder needs truthy " + required).isNotBlank();
+        }
+        assertThat(Instant.parse(payload.get("dueDate").asText())).isEqualTo(due);
+        assertThat(payload.get("leadHours").isIntegralNumber()).isTrue();
+        assertThat(payload.get("leadHours").asLong()).isEqualTo(12);
     }
 
     @Test
