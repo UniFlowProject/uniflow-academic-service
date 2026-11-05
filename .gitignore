@@ -34,3 +34,8 @@ build/
 
 ### Envs ###
 .env
+.env.*
+!.env.example
+
+# Terraform local state
+terraform/.terraform/

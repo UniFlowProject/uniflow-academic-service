@@ -82,7 +82,7 @@ Requisitos: Docker con Compose v2 (BuildKit) y `curl`. La imagen de Floci está 
 
 | Servicio | Qué es | Puerto en el host (variable) |
 |---|---|---|
-| `floci` | Emulador de AWS (`floci/floci:2.3.0`); monta `/var/run/docker.sock` para arrancar el contenedor de RDS (y los de Lambda) | `4566` (`FLOCI_PORT`), `7001` RDS (`FLOCI_RDS_PORT`) |
+| `floci` | Emulador de AWS (`floci/floci:2.3.0`); monta `/var/run/docker.sock` para arrancar el contenedor de RDS (y los de Lambda) | `4566` (`FLOCI_PORT`), `7001-7010` RDS proxy |
 | `floci-init` | Tarea de un solo uso e idempotente (`docker/floci/init.sh`, imagen `amazon/aws-cli`): crea el user pool de Cognito, el app client, los usuarios `user-a` y `user-b` y la instancia RDS PostgreSQL 16 | - |
 | `app` | Este servicio, construido con el `Dockerfile` | `3001` (`APP_PORT`) |
 | `token` | Utilidad (perfil `tools`) que imprime un access token de Cognito | - |
@@ -131,7 +131,11 @@ curl -s -H "Authorization: Bearer $TOKEN_B" localhost:3001/tasks
 
 Swagger UI (habilitado solo en este compose): <http://localhost:3001/swagger-ui/index.html>. La especificación OpenAPI no declara un esquema de seguridad, por lo que Swagger UI no ofrece el botón **Authorize** y sus peticiones "Try it out" responden 401: úsalo para consultar el contrato y ejecuta las llamadas con `curl` y el token. Los tokens duran 1 hora.
 
-Base de datos: la app usa la instancia RDS de Floci (`floci:7001` dentro de la red de Compose, `localhost:7001` desde el host). Para inspeccionarla: `docker run --rm -it --network uniflow-academic-dev -e PGPASSWORD=password postgres:16-alpine psql -h floci -p 7001 -U postgres -d uniflow_db`.
+Base de datos: la app usa la instancia RDS de Floci (`floci:<puerto>` dentro de la red de Compose, `localhost:<puerto>` desde el host). El puerto normal es `7001`, pero Floci no reutiliza el puerto de un `CreateDBInstance` fallido (p. ej. por disco lleno), asi que puede ser `7002`, `7003`... `floci-init` lee el puerto real, lo imprime y lo escribe en `/out/db.env`, que el entrypoint de la app aplica como `DB_PORT`. Para verlo: `docker compose -f docker-compose.dev.yml logs floci-init | tail -1`. Para inspeccionarla: `docker run --rm -it --network uniflow-academic-dev -e PGPASSWORD=password postgres:16-alpine psql -h floci -p <puerto> -U postgres -d uniflow_db`.
+
+Estado persistente de Floci: el volumen anonimo montado en `/app/data` del contenedor `floci` conserva pool, client, usuarios e instancia RDS entre `up`/`down` sin `-v`. Los cambios en `docker/floci/init.sh` se aplican igualmente porque el script actualiza el client existente (flujos OAuth, scopes, callback/logout URLs). Si quieres empezar de cero (tambien libera el puerto 7001): `docker compose -f docker-compose.dev.yml down -v` (borra los volumenes de ESTE proyecto, incluido el de estado de Floci), y despues elimina los volumenes huerfanos `floci-aws-rds-db-*` que dejo Floci (`docker volume ls | grep floci-aws-rds-db`; borra solo los que `docker ps -a` no use).
+
+Login del frontend (`UniFlow-Frontend`, Hosted UI + Authorization Code/PKCE): `floci-init` crea el dominio Hosted UI y deja el client `uniflow-spa` con `code`, scopes `openid email profile`, proveedor `COGNITO`, callback `${FRONTEND_ORIGIN}/auth/callback` y logout `${FRONTEND_ORIGIN}` (por defecto `http://localhost:3000`, el puerto de `pnpm dev`). Para otro origen: `FRONTEND_ORIGIN=http://localhost:5173 docker compose -f docker-compose.dev.yml up -d` (tambien ajusta CORS de Floci y de la app). El frontend usa `VITE_COGNITO_DOMAIN=http://localhost.floci.io:4566/cognito-idp` y `VITE_COGNITO_CLIENT_ID=uniflow-spa`.
 
 ### El emisor (issuer) y por qué funciona desde el host y desde Compose
 
@@ -151,7 +155,7 @@ Los tokens traen `token_use=access`, `client_id=uniflow-spa` y `sub` = UUID del 
 docker compose -f docker-compose.dev.yml up -d floci floci-init   # sin el contenedor de la app
 docker compose -f docker-compose.dev.yml logs floci-init          # espera a "done"
 
-export DB_PORT=7001 DB_USER=postgres DB_PASSWORD=password
+export DB_PORT=7001 DB_USER=postgres DB_PASSWORD=password   # use the port printed by floci-init if it is not 7001
 export COGNITO_ISSUER_URI=http://localhost.floci.io:4566/us-east-1_UniflowDev
 export COGNITO_ALLOWED_CLIENT_IDS=uniflow-spa
 ./mvnw spring-boot:run
@@ -160,7 +164,7 @@ TOKEN=$(scripts/dev-token.sh user-a)    # mismo iss que usa la app del host
 curl -s -H "Authorization: Bearer $TOKEN" localhost:8080/periods
 ```
 
-La app en el host escucha en `8080` por defecto y se conecta a la base por `localhost:7001`. No ejecutes a la vez la app del host y la del compose si no quieres compartir la misma base.
+La app en el host escucha en `8080` por defecto y se conecta a la base por `localhost:<puerto RDS>` (normalmente `7001`). No ejecutes a la vez la app del host y la del compose si no quieres compartir la misma base.
 
 ### Recordatorios con Lambda, SQS y EventBridge Scheduler (perfil `reminders`)
 

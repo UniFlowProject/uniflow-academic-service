@@ -7,7 +7,9 @@ export AWS_PAGER=""
 
 POOL_ID=us-east-1_UniflowDev
 CLIENT_NAME=uniflow-spa
+POOL_DOMAIN=uniflow-dev
 DB_IDENTIFIER=uniflow-db
+# Default first RDS proxy port; the real one is read back from Floci by init.sh.
 DB_PORT=7001
 ACCOUNT_ID=000000000000
 

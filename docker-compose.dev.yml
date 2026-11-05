@@ -28,11 +28,16 @@ services:
     environment:
       FLOCI_BASE_URL: http://localhost.floci.io:4566
       FLOCI_SERVICES_DOCKER_NETWORK: uniflow-academic-dev
+      # Floci answers CORS preflights only for allow-listed origins (needed by the SPA's POST to the token endpoint).
+      FLOCI_SECURITY_EXTRA_CORS_ALLOWED_ORIGINS: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      FLOCI_SECURITY_EXTRA_CORS_ALLOWED_HEADERS: "*"
     ports:
-      - "${FLOCI_PORT:-4566}:4566"
-      # RDS proxy range: the first instance listens on 7001 (used by the host-run app and psql).
-      - "${FLOCI_RDS_PORT:-7001}:7001"
+      - "127.0.0.1:${FLOCI_PORT:-4566}:4566"
+      # RDS proxy range: the first instance normally listens on 7001, but Floci does not reuse the port of a
+      # failed CreateDBInstance, so publish a few more (the actual port is printed by floci-init).
+      - "127.0.0.1:7001-7010:7001-7010"
     volumes:
+      # Root-equivalent on the host: dev-only.
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       default:
@@ -54,6 +59,7 @@ services:
     environment:
       <<: *floci-credentials
       AWS_ENDPOINT_URL: http://localhost.floci.io:4566
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
       DB_NAME: ${DB_NAME:-uniflow_db}
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-password}
@@ -92,7 +98,8 @@ services:
         required: false
     environment:
       <<: *floci-credentials
-      # The RDS endpoint is the Floci proxy port (7001 for the first instance), reached through the floci service.
+      # The RDS endpoint is the Floci proxy port, reached through the floci service. 7001 is only the default:
+      # floci-init writes the real port to /out/db.env and the entrypoint below overrides DB_PORT with it.
       DB_HOST: floci
       DB_PORT: 7001
       DB_NAME: ${DB_NAME:-uniflow_db}
@@ -108,17 +115,17 @@ services:
       REMINDER_SCHEDULER: noop
       # Read by the AWS SDK for Java v2 (Scheduler client); only used when the reminders profile is on.
       AWS_ENDPOINT_URL: http://localhost.floci.io:4566
-      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      CORS_ALLOWED_ORIGINS: ${FRONTEND_ORIGIN:-http://localhost:3000}
     # Dev-only entrypoint: the production image entrypoint stays untouched. With the `reminders` profile
     # floci-init-reminders writes /out/reminders.env, which switches the reminder scheduler to EventBridge.
     entrypoint:
       - /bin/sh
       - -c
-      - '[ -f /out/reminders.env ] && . /out/reminders.env; exec java -jar app.jar'
+      - '[ -f /out/db.env ] && . /out/db.env; [ -f /out/reminders.env ] && . /out/reminders.env; exec java -jar app.jar'
     volumes:
       - app-config:/out:ro
     ports:
-      - "${APP_PORT:-3001}:3001"
+      - "127.0.0.1:${APP_PORT:-3001}:3001"
 
   # Helper (profile `tools`): prints only an access token on stdout, e.g. with scripts/dev-token.sh.
   token:
