@@ -1,0 +1,153 @@
+# Local development stack: the app on top of Floci, a local AWS emulator (https://floci.io/aws/).
+# Floci provides Cognito (OIDC issuer + JWKS), RDS (a real PostgreSQL container) and, with the
+# `reminders` profile, SQS + EventBridge Scheduler + Lambda + SNS.
+# DEV ONLY: every value below is a throwaway default. Floci mounts the Docker socket (root-equivalent
+# on the host), so keep this stack on your own machine.
+#
+#   docker compose -f docker-compose.dev.yml up -d --build
+#   TOKEN=$(scripts/dev-token.sh user-a)
+#   docker compose -f docker-compose.dev.yml --profile reminders up -d --build   # + reminder pipeline
+name: uniflow-academic-dev
+
+x-floci-credentials: &floci-credentials
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_REGION: us-east-1
+
+services:
+  # Local AWS emulator. Floci starts the RDS (and Lambda) containers through the Docker socket and
+  # attaches them to the compose network below.
+  #
+  # ISSUER: Cognito builds `iss` as FLOCI_BASE_URL/<pool id>. localhost.floci.io is a public DNS name that
+  # resolves to 127.0.0.1 / ::1, so on the host http://localhost.floci.io:4566 reaches the published port.
+  # The network alias gives the same name to this container inside the compose network, so the app and
+  # the token helper use the very same URL: one issuer valid from both sides.
+  floci:
+    image: floci/floci:2.3.0
+    environment:
+      FLOCI_BASE_URL: http://localhost.floci.io:4566
+      FLOCI_SERVICES_DOCKER_NETWORK: uniflow-academic-dev
+      # Floci answers CORS preflights only for allow-listed origins (needed by the SPA's POST to the token endpoint).
+      FLOCI_SECURITY_EXTRA_CORS_ALLOWED_ORIGINS: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      FLOCI_SECURITY_EXTRA_CORS_ALLOWED_HEADERS: "*"
+    ports:
+      - "127.0.0.1:${FLOCI_PORT:-4566}:4566"
+      # RDS proxy range: the first instance normally listens on 7001, but Floci does not reuse the port of a
+      # failed CreateDBInstance, so publish a few more (the actual port is printed by floci-init).
+      - "127.0.0.1:7001-7010:7001-7010"
+    volumes:
+      # Root-equivalent on the host: dev-only.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      default:
+        aliases:
+          - localhost.floci.io
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-shot, idempotent bootstrap: Cognito pool/client/users and the RDS instance.
+  floci-init:
+    image: amazon/aws-cli:2.38.5
+    entrypoint: ["/bin/sh", "/floci/init.sh"]
+    depends_on:
+      floci:
+        condition: service_healthy
+    environment:
+      <<: *floci-credentials
+      AWS_ENDPOINT_URL: http://localhost.floci.io:4566
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      DB_NAME: ${DB_NAME:-uniflow_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      USER_A_PASSWORD: ${USER_A_PASSWORD:-UserA-Dev-Passw0rd}
+      USER_B_PASSWORD: ${USER_B_PASSWORD:-UserB-Dev-Passw0rd}
+    volumes:
+      - ./docker/floci:/floci:ro
+      - app-config:/out
+    restart: "no"
+
+  # Reminder pipeline (profile `reminders`): SQS queues, SNS topic, scheduler group/role and the
+  # process_expiration Lambda. Writes /out/reminders.env, which the app entrypoint sources.
+  floci-init-reminders:
+    image: amazon/aws-cli:2.38.5
+    profiles: [reminders]
+    entrypoint: ["/bin/sh", "/floci/reminders.sh"]
+    depends_on:
+      floci-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *floci-credentials
+      AWS_ENDPOINT_URL: http://localhost.floci.io:4566
+    volumes:
+      - ./docker/floci:/floci:ro
+      - app-config:/out
+    restart: "no"
+
+  app:
+    build:
+      context: .
+    depends_on:
+      floci-init:
+        condition: service_completed_successfully
+      floci-init-reminders:
+        condition: service_completed_successfully
+        required: false
+    environment:
+      <<: *floci-credentials
+      # The RDS endpoint is the Floci proxy port, reached through the floci service. 7001 is only the default:
+      # floci-init writes the real port to /out/db.env and the entrypoint below overrides DB_PORT with it.
+      DB_HOST: floci
+      DB_PORT: 7001
+      DB_NAME: ${DB_NAME:-uniflow_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      # Pinned by docker/floci/init.sh. Must equal the `iss` claim of the Floci tokens; the app fetches
+      # discovery/JWKS from this URL (the network alias above makes it resolvable here).
+      COGNITO_ISSUER_URI: http://localhost.floci.io:4566/us-east-1_UniflowDev
+      COGNITO_ALLOWED_CLIENT_IDS: uniflow-spa
+      SPRINGDOC_SWAGGER_UI_ENABLED: "true"
+      SPRINGDOC_API_DOCS_ENABLED: "true"
+      LOGGING_LEVEL_COM_UNIFLOW: DEBUG
+      REMINDER_SCHEDULER: noop
+      # Read by the AWS SDK for Java v2 (Scheduler client); only used when the reminders profile is on.
+      AWS_ENDPOINT_URL: http://localhost.floci.io:4566
+      CORS_ALLOWED_ORIGINS: ${FRONTEND_ORIGIN:-http://localhost:3000}
+    # Dev-only entrypoint: the production image entrypoint stays untouched. With the `reminders` profile
+    # floci-init-reminders writes /out/reminders.env, which switches the reminder scheduler to EventBridge.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - '[ -f /out/db.env ] && . /out/db.env; [ -f /out/reminders.env ] && . /out/reminders.env; exec java -jar app.jar'
+    volumes:
+      - app-config:/out:ro
+    ports:
+      - "127.0.0.1:${APP_PORT:-3001}:3001"
+
+  # Helper (profile `tools`): prints only an access token on stdout, e.g. with scripts/dev-token.sh.
+  token:
+    image: amazon/aws-cli:2.38.5
+    profiles: [tools]
+    depends_on:
+      floci-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *floci-credentials
+      AWS_ENDPOINT_URL: http://localhost.floci.io:4566
+      TOKEN_USER: user-a
+      USER_A_PASSWORD: ${USER_A_PASSWORD:-UserA-Dev-Passw0rd}
+      USER_B_PASSWORD: ${USER_B_PASSWORD:-UserB-Dev-Passw0rd}
+    entrypoint: ["/bin/sh", "/floci/token.sh"]
+    volumes:
+      - ./docker/floci:/floci:ro
+
+networks:
+  default:
+    # Fixed name so Floci can attach the containers it starts (RDS, Lambda) to this network.
+    name: uniflow-academic-dev
+
+volumes:
+  app-config:

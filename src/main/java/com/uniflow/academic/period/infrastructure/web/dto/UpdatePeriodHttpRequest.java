@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 public class UpdatePeriodHttpRequest {
 
     @Size(min = 1, max = 255)
+    @Pattern(regexp = ".*\\S.*", message = "Period name must not be blank")
     @JsonProperty("name")
     @Schema(description = "Period name", example = "I Semestre Actualizado")
     private String name;

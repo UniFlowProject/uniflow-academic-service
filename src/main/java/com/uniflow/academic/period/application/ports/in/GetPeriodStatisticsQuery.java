@@ -6,8 +6,8 @@ public interface GetPeriodStatisticsQuery {
     /**
      * Get period statistics including counts and breakdowns
      *
-     * @param studentId The student ID
+     * @param userId The user ID
      * @return Period statistics
      */
-    PeriodStatisticsResponse execute(String studentId);
+    PeriodStatisticsResponse execute(String userId);
 }

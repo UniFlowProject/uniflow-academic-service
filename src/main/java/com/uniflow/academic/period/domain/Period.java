@@ -21,7 +21,7 @@ public class Period {
     private Integer year;
     private LocalDate startDate;
     private LocalDate endDate;
-    private String studentId;
+    private String userId;
     private Boolean isActive;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -60,7 +60,7 @@ public class Period {
         }
         if (startDate.isAfter(endDate)) {
             throw new InvalidPeriodException(
-                    "Start date must be before end date"
+                    "Start date must not be after end date"
             );
         }
         if (year == null || year < 1900 || year > 2100) {
@@ -74,14 +74,6 @@ public class Period {
     }
 
     /**
-     * Checks if period is currently active by date
-     */
-    public boolean isCurrentlyActive() {
-        LocalDateTime now = LocalDateTime.now();
-        return !now.isBefore(startDate.atStartOfDay()) && !now.isAfter(endDate.atStartOfDay());
-    }
-
-    /**
      * Create a new period with generated ID and timestamps
      */
     public static Period create(
@@ -90,7 +82,7 @@ public class Period {
             Integer year,
             LocalDate startDate,
             LocalDate endDate,
-            String studentId
+            String userId
     ) {
         Period period = Period.builder()
                 .id(UUID.randomUUID().toString())
@@ -99,7 +91,7 @@ public class Period {
                 .year(year)
                 .startDate(startDate)
                 .endDate(endDate)
-                .studentId(studentId)
+                .userId(userId)
                 .isActive(false)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())

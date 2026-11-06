@@ -1,130 +1,81 @@
 package com.uniflow.academic.config;
 
-import com.uniflow.academic.shared.infrastructure.security.JwtAuthenticationFilter;
-import lombok.extern.slf4j.Slf4j;
+import com.uniflow.academic.shared.infrastructure.web.JsonAccessDeniedHandler;
+import com.uniflow.academic.shared.infrastructure.web.JsonAuthenticationEntryPoint;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
 import java.util.Arrays;
+import java.util.List;
 
 /**
- * Spring Security 6.5.6 REST API configuration
- * Valida tokens de Google como Azure APIM
+ * Stateless resource server: Cognito JWTs are validated against the configured issuer.
+ * The authenticated principal name is the JWT {@code sub} claim (the user id).
  */
-@Slf4j
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-    }
-
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http)
-            throws Exception {
-
+    public SecurityFilterChain filterChain(
+            HttpSecurity http,
+            JsonAuthenticationEntryPoint authenticationEntryPoint,
+            JsonAccessDeniedHandler accessDeniedHandler
+    ) throws Exception {
         http
-                // Autorización
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(Customizer.withDefaults())
                 .authorizeHttpRequests(authz -> authz
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
-                                "/",
                                 "/health",
                                 "/swagger-ui/**",
-                                "/v3/api-docs/**",
                                 "/swagger-ui.html",
-                                "/webjars/**"
+                                "/v3/api-docs/**"
                         ).permitAll()
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/students/{studentId}"
-                        ).permitAll()
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/students/google/{googleId}"
-                        ).permitAll()
-                        .requestMatchers(
-                                HttpMethod.POST,
-                                "/auth/google/callback"
-                        ).permitAll()
-                        .requestMatchers(
-                                HttpMethod.OPTIONS,
-                                "/**"
-                        ).permitAll()
-                        .anyRequest().authenticated()
-                )
-
-                // Agregar filtro de validación de token de Google
-                // Ejecuta ANTES que UsernamePasswordAuthenticationFilter
-                .addFilterBefore(
-                        jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class
-                )
-
-                // Logout
-                .logout(logout -> logout
-                        .logoutUrl("/logout")
-                        .logoutSuccessUrl("/")
-                        .permitAll()
-                )
-
-                // CORS
-                .cors(cors -> cors
-                        .configurationSource(corsConfigurationSource())
-                )
-
-                // CSRF - disabled for REST API
-                .csrf(AbstractHttpConfigurer::disable
-                );
+                        .anyRequest().authenticated())
+                .exceptionHandling(handling -> handling
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(Customizer.withDefaults())
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler));
 
         return http.build();
     }
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins}") String allowedOrigins
+    ) {
         CorsConfiguration configuration = new CorsConfiguration();
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toList();
 
-        configuration.setAllowedOrigins(Arrays.asList(
-                // Dev
-                "http://localhost:3000",
-                "http://localhost:8080",
-                "http://127.0.0.1:8080",
-
-                // APIM
-                "https://uniflowapi.azure-api.net",
-
-                // Frontend
-                "https://uniflow.fabian-vargas.com",
-                "https://gentle-flower-023e1cd0f.1.azurestaticapps.net"
-        ));
-
-        configuration.setAllowedMethods(Arrays.asList(
-                "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
-        ));
-
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setExposedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Type",
-                "X-Total-Count"
-        ));
+        configuration.setAllowedOrigins(origins);
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
-        UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
-
         return source;
     }
 }

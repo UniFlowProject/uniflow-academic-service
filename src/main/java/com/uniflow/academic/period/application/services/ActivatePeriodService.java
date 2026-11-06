@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * Service implementation for activating academic periods.
- * Use case: Activate a period (deactivates all others for the student)
+ * Use case: Activate a period (deactivates all others for the user)
  */
 @Slf4j
 @Service
@@ -24,23 +24,23 @@ public class ActivatePeriodService implements ActivatePeriodCommand {
     private final PeriodRepository periodRepository;
 
     @Override
-    public Period execute(String periodId, String studentId) {
+    public Period execute(String periodId, String userId) {
         log.info(
-                "Activating period: {} for student: {}",
+                "Activating period: {} for user: {}",
                 periodId,
-                studentId
+                userId
         );
 
         // Fetch the period to activate
         Period periodToActivate =
-                periodRepository.findById(periodId, studentId)
+                periodRepository.findById(periodId, userId)
                         .orElseThrow(() -> new PeriodNotFoundException(
                                 "Period not found: " + periodId
                         ));
 
-        // Deactivate all currently active periods for this student
-        List<Period> activePerods = periodRepository.findAllActive(studentId);
-        for (Period activePeriod : activePerods) {
+        // Deactivate all currently active periods for this user
+        List<Period> activePeriods = periodRepository.findAllActive(userId);
+        for (Period activePeriod : activePeriods) {
             if (!activePeriod.getId().equals(periodId)) {
                 Period deactivated = activePeriod.toBuilder()
                         .isActive(false)

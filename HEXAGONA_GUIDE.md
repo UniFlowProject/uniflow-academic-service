@@ -1,7 +1,7 @@
 # Arquitectura Hexagonal con Spring Boot - Guía Paso a Paso
 
 ## Introducción
-Esta guía documenta la construcción de una arquitectura hexagonal (puertos y adaptadores) en Spring Boot 3.5.7 con PostgreSQL, Google OAuth2 y Hexagonal Architecture.
+Esta guía documenta la construcción de una arquitectura hexagonal (puertos y adaptadores) en Spring Boot 3.5.7 con PostgreSQL, Cognito (JWT resource server) y Hexagonal Architecture.
 
 ---
 
@@ -29,12 +29,11 @@ Crear excepciones personalizadas para casos de error del negocio.
 **Estructura:**
 ```
 domain/
-├── model/
-│   └── MiObjeto.java
+├── MiObjeto.java
 └── exception/
-    ├── MiObjetoNotFoundException.java
-    ├── MiObjetoValidationException.java
-    └── InvalidMiObjetoTypeException.java
+    ├── MiObjetoNotFoundException.java   // extiende NotFoundException (404)
+    ├── InvalidMiObjetoException.java    // extiende InvalidDomainException (400)
+    └── MiObjetoAlreadyExistsException.java // extiende ConflictException (409)
 ```
 
 ---
@@ -49,7 +48,7 @@ Define contratos para casos de uso que modifican (Commands) y consultan (Queries
 
 **Ejemplo de estructura:**
 ```
-application/port/in/
+application/ports/in/
 ├── CreateMiObjetoCommand.java       // Crear
 ├── UpdateMiObjetoCommand.java       // Actualizar
 ├── DeleteMiObjetoCommand.java       // Eliminar
@@ -102,7 +101,7 @@ Implementan los puertos de entrada (Commands y Queries).
 
 **Estructura:**
 ```
-application/service/
+application/services/
 ├── CreateMiObjetoService.java
 ├── UpdateMiObjetoService.java
 ├── DeleteMiObjetoService.java
@@ -142,7 +141,7 @@ Interfaz de queries a base de datos.
 - `@Repository` (Spring) - Opcional, Spring la detecta automáticamente
 
 **Métodos:**
-- Métodos simples por nombre (`findByIdAndStudentId()`)
+- Métodos simples por nombre (`findByIdAndUserId()`)
 - Métodos complejos con `@Query` (JPQL/SQL)
 - Retornan `Optional<>` para opcionalidad segura
 - Soportan `Page<>` para paginación
@@ -202,7 +201,7 @@ Convierte entre DTOs HTTP y modelos de aplicación.
 - `toCreateCommandRequest(httpRequest)`
 - `toUpdateCommandRequest(httpRequest)`
 - `toHttpResponse(domainObject)`
-- `toPaginationHttpResponse(appResponse)`
+- `toPagedResponse(pagedResult)` - usa `PagedResult.map`
 
 ### 5.3 Controlador REST
 Expone endpoints HTTP.
@@ -229,47 +228,28 @@ Expone endpoints HTTP.
 - Retornar códigos HTTP apropiados
 
 ### 5.4 Manejador Global de Excepciones
-Convierte excepciones de dominio a respuestas HTTP.
+Existe UN solo `@RestControllerAdvice` en `shared/infrastructure/web/GlobalExceptionHandler`. Los módulos NO definen handlers propios.
 
-**Annotations:**
-- `@RestControllerAdvice` (Spring)
-- `@ExceptionHandler` (Spring)
-- `@Slf4j` (Lombok)
-
-**Handlers:**
-- Por cada excepción de dominio
-- Por errores de validación (`MethodArgumentNotValidException`)
-- Por errores HTTP (`HttpMessageNotReadableException`)
-- Fallback general para excepciones no manejadas
+- Las excepciones de dominio extienden la jerarquía de `shared/domain/exception`: `NotFoundException` (404), `InvalidDomainException` (400), `ConflictException` (409). Cada una define su `code` (p. ej. `PERIOD_NOT_FOUND`, `COURSE_CODE_ALREADY_EXISTS`).
+- Cuerpo de error único: `{ "error": { "code", "message", "details": [ { "field", "message" } ] } }` (campos nulos omitidos).
+- Además maneja validación de beans (`VALIDATION_ERROR`, 400), JSON mal formado (`MALFORMED_REQUEST`, 400), violaciones de unicidad/FK (`CONFLICT`, 409; otros errores de integridad son 500), acceso denegado (`FORBIDDEN`, 403) y el fallback `INTERNAL_ERROR` (500).
 
 ---
 
 ## 6. Capa de Infraestructura - Seguridad
 
-### 6.1 Autenticación con Google OAuth2
-Validar tokens de Google.
+Cognito autentica en API Gateway y el servicio valida el JWT como OAuth2 resource server. No hay filtros ni validadores propios.
 
-**Annotations:**
-- `@Component` (Spring)
-- `@RequiredArgsConstructor` (Lombok)
-- `@Slf4j` (Lombok)
+### 6.1 Identidad del usuario
+- El id del usuario es el claim `sub` del JWT: `authentication.getName()` en los controllers.
+- No existe tabla de usuarios; cada tabla guarda `user_id` y todo acceso a datos se filtra por `user_id` (un recurso ajeno responde 404).
 
-**Componentes:**
-- `GoogleTokenValidator` - Valida tokens con Google
-- `GoogleTokenAuthenticationFilter` - Extrae y valida tokens en cada request
-- `GoogleAuthenticationUtil` - Helper para acceder a datos del usuario
-
-### 6.2 Configuración de Spring Security
-Define reglas de autorización y CORS.
-
-**Annotations:**
-- `@Configuration` (Spring)
-- `@EnableWebSecurity` (Spring Security)
-- `@Bean` (Spring)
-
-**Métodos:**
-- `filterChain()` - Configurar filtros de seguridad
-- `corsConfigurationSource()` - Configurar CORS
+### 6.2 Configuración de Spring Security (`config/SecurityConfig`)
+- Stateless, CSRF deshabilitado, `oauth2ResourceServer().jwt()` con `spring.security.oauth2.resourceserver.jwt.issuer-uri=${COGNITO_ISSUER_URI}`.
+- `config/JwtDecoderConfig` (perfil distinto de `test`) construye el `JwtDecoder` con `CognitoTokenValidators`: issuer + vigencia, `token_use=access` y `client_id` en `COGNITO_ALLOWED_CLIENT_IDS` (obligatoria; el arranque falla si está vacía). Los tests definen su propio `JwtDecoder` mock.
+- 401/403 devuelven el cuerpo de error JSON compartido (`UNAUTHORIZED` / `FORBIDDEN`) mediante `JsonAuthenticationEntryPoint` / `JsonAccessDeniedHandler`, sin detalles del token.
+- Públicos: `/health` (y swagger / `/v3/api-docs/**` solo si springdoc está habilitado, desactivado por defecto). Todo lo demás requiere autenticación.
+- CORS desde `CORS_ALLOWED_ORIGINS` (lista separada por comas).
 
 ---
 
@@ -285,8 +265,7 @@ spring:
   jpa:                 # Configuración JPA/Hibernate
   flyway:              # Migraciones de base de datos
   jackson:             # Serialización JSON
-  security.oauth2:     # OAuth2 de Google
-  web.cors:            # CORS
+  security.oauth2.resourceserver.jwt:  # issuer de Cognito
 
 server:               # Puerto y contexto
 logging:              # Niveles de log
@@ -298,9 +277,8 @@ SQL para crear tablas y esquemas.
 **Estructura:**
 ```
 src/main/resources/db/migration/
-├── V1__create_schema.sql
-├── V2__create_miobjeto_table.sql
-└── V3__add_indexes.sql
+├── V1__baseline.sql        # esquema academic, periods, courses
+└── V2__...sql              # cambios posteriores (nunca editar V1)
 ```
 
 **Naming:** `V{version}__{description}.sql`
@@ -310,27 +288,69 @@ src/main/resources/db/migration/
 ## 8. Flujo Completo de una Solicitud
 
 ```
-1. HTTP Request → PeriodStatsFilter (OAuth2)
+1. HTTP Request con Bearer JWT (Cognito)
    ↓
-2. GoogleTokenAuthenticationFilter valida token
+2. Resource server valida el JWT (firma/issuer) -> Authentication (name = sub)
    ↓
-3. PeriodController recibe request
+3. Controller recibe request (userId = authentication.getName())
    ↓
 4. Mapper HTTP convierte a Command/Query
    ↓
-5. Service ejecuta lógica de caso de uso
+5. Service ejecuta el caso de uso
    ↓
-6. Repository persiste/recupera datos
+6. Repository (puerto) persiste/recupera datos filtrando por user_id
    ↓
-7. Mapper Entity ↔ Domain
+7. Mapper Entity <-> Domain
    ↓
-8. Service retorna resultado de dominio
+8. Controller mapea a DTO HTTP y responde
    ↓
-9. Mapper Response convierte a DTO HTTP
-   ↓
-10. Controller retorna ResponseEntity
-   ↓
-11. PeriodExceptionHandler maneja errores
-   ↓
-12. HTTP Response al cliente
+9. GlobalExceptionHandler convierte cualquier error al cuerpo único de error
 ```
+
+---
+
+## 9. Convenciones globales
+
+- **Identidad**: `userId` = `sub` del JWT; columnas `user_id`.
+- **Dominio**: el recurso hijo de `PERIOD` es `COURSE`; las tareas (`TASK`) cuelgan de `COURSE` (y de su `PERIOD`). El módulo de curso consulta si un curso tiene tareas mediante el puerto `CourseTaskLookup`, que implementa el módulo de tareas (ver sección 11).
+- **Errores**: un único cuerpo `{ "error": { "code", "message", "details": [ { "field", "message" } ] } }`; excepciones de dominio extienden `NotFoundException` / `InvalidDomainException` / `ConflictException`. Sin handlers por módulo.
+- **Periodo ajeno o inexistente**: crear/listar/validar cursos con un `periodId` que no pertenece al usuario (o no existe) responde 404 `PERIOD_NOT_FOUND`, igual que los endpoints de periodos.
+- **Listas**: las listas paginadas responden `{ "items": [...], "pageInfo": { "total", "page", "limit", "totalPages", "hasNext", "hasPrev" } }` (`shared/application/PagedResult<T>`); las listas sin paginar (`GET /courses`, `GET /periods/{id}/courses`) responden `{ "items": [...] }`.
+- **Paginación**: `PaginationParams` es inmutable y valida una sola vez (page >= 1, limit 1..100, defaults 1 y 10); valores inválidos responden 400 `VALIDATION_ERROR` (no se corrigen en silencio).
+- **Un periodo activo por usuario**: índice único parcial `uk_period_one_active_per_user` (`WHERE is_active`). Al activar, desactivar primero y hacer `flush` antes de activar (ver `ActivatePeriodService` / `PeriodPostgresAdapter.update`).
+- **Migraciones**: Flyway, esquema `academic`; `V1__baseline.sql` es el baseline de Postgres. Nuevos cambios en `V2+`.
+- **Tests**: integración con Testcontainers (`support/IntegrationTestBase` + `PostgresTestConfig`, `@ServiceConnection`), JWT simulado con `jwt()` de spring-security-test (`sub` = id del usuario). Cada test usa un `userId` aleatorio para aislarse.
+- **Logging**: nunca registrar tokens ni cabeceras de autorización; sin `System.out`.
+
+## 10. Piezas compartidas y convención de propiedad
+
+Dónde viven las piezas compartidas (cualquier módulo nuevo, p. ej. tareas, debe reutilizarlas):
+
+- `shared/application`: `PagedResult`, `PaginationParams`.
+- `shared/domain/exception`: `DomainException` y la jerarquía `NotFoundException` / `InvalidDomainException` / `ConflictException`.
+- `shared/infrastructure/web`: `GlobalExceptionHandler`, `ApiErrorResponse`, `JsonAuthenticationEntryPoint`, `JsonAccessDeniedHandler`.
+- `shared/infrastructure/security`: `CognitoTokenValidators`.
+
+Convención de propiedad (aislamiento por usuario):
+
+- Cada repositorio expone `findById(id, userId)` y un `default requireOwned(id, userId)` que lanza la excepción `NotFound` del módulo (`PeriodRepository`, `CourseRepository`). Los services usan `requireOwned`; nunca consultan por id sin `userId`.
+- Para validar un recurso padre (p. ej. el curso de una tarea) usar `courseRepository.requireOwned(courseId, userId)` y trabajar con el id canónico devuelto (los ids se normalizan con `trim`). Un recurso ajeno o inexistente siempre responde 404.
+- Los borrados son por `id` + `user_id` (`delete(id, userId)` devuelve `boolean`); un módulo no depende de la persistencia de otro: usa puertos (`CourseRepository.existsByPeriodId`, `CourseTaskLookup.existsByCourseId`).
+
+## 11. Módulo de tareas (`com.uniflow.academic.task`)
+
+Port del servicio Python `uniflow-tasks-service`; `subject` pasó a `course` (`courseId`, filtro `courseId`, estadística `byCourse`).
+
+- **Dominio**: `Task` es inmutable (`@Value`); cada cambio devuelve una copia validada. `create` (status `todo`, timestamps con el `Clock`), `withChanges(TaskChanges, now)` (exige tarea modificable y revalida todo), `transitionTo` (tabla `allowedTransitions`; `done` fija `completedAt`). `done` y `cancelled` no se pueden modificar ni cambiar de estado, pero una tarea se puede borrar en cualquier estado (decisión de producto; el Python original lo impedía). Borrar cancela su recordatorio. `groupMembers` solo con tipo `group-work`. Los enums (`TaskStatus`, `TaskPriority`, `TaskType`) exponen su valor de cable con `value()` / `fromValue()` (`WireEnum`); el orden de declaración es el rango usado al ordenar por prioridad o estado.
+- **Errores** (cuerpo compartido): `TASK_CONFLICT` 409 (bloqueo optimista, ver abajo), `TASK_NOT_FOUND` 404 (tarea ajena o inexistente, no se filtra su existencia), `TASK_NOT_MODIFIABLE` 409, `INVALID_STATUS_TRANSITION` 409, `INVALID_TASK` 400, `VALIDATION_ERROR` 400. `courseId`/`periodId` ajenos o inexistentes responden `COURSE_NOT_FOUND` / `PERIOD_NOT_FOUND` (404) y un curso que no pertenece al periodo indicado responde `INVALID_TASK` (`TaskParentsResolver`, usado al crear y al cambiar curso o periodo).
+- **Persistencia**: `V2__tasks.sql` (`academic.tasks`). Clave foránea compuesta `(course_id, period_id)` hacia `courses(id, period_id)` con `ON DELETE RESTRICT`; CHECK de enums, horas >= 0 y `group_members` vacío salvo `group-work`. `tags`/`group_members`/`attachments` son `text[]`. Filtros, orden y paginación se hacen en SQL (`TaskSpecifications`, Criteria): prioridad y estado ordenan por rango con `CASE`, desempate por `createdAt` y `id`; `isOverdue`/`isDueSoon` usan el `Clock` inyectado (el servicio pasa `now` al repositorio). Las estadísticas se calculan en dominio (`TaskStats.from`) sobre todas las tareas del usuario.
+- **Bloqueo optimista**: `V3__task_version.sql` añade `version` (`@Version`). `Task` lleva su versión; `TaskPostgresAdapter.save` inserta si no tiene versión y, si la tiene, actualiza la fila existente (404 si ya fue borrada, sin resucitarla) comparando versiones; una escritura obsoleta lanza `ObjectOptimisticLockingFailureException`, que `GlobalExceptionHandler` convierte en 409 `TASK_CONFLICT`.
+- **Límites y validación**: tamaños máximos en los DTO (ver README); elementos de listas no nulos ni vacíos; `attachments` solo URLs `http`/`https`, validado también en el dominio (`Task`).
+- **Estadísticas**: `TaskRepository.stats` usa consultas `GROUP BY` (estado, prioridad, tipo, curso) más un conteo de vencidas con el `Clock`; no carga las tareas.
+- **Búsqueda**: `lower(titulo || ' ' || descripcion) LIKE` con el término en minúsculas (`Locale.ROOT`), sin recortar espacios; un término en blanco equivale a sin filtro.
+- **Paginación**: el límite por defecto de `GET /tasks` es 20 (`PaginationParams.of(page, limit, defaultLimit)`); fuera de rango responde 400.
+- **PATCH parcial**: `UpdateTaskHttpRequest` registra en sus setters qué campos llegaron en el JSON. Un `null` explícito en un campo requerido responde 400 `VALIDATION_ERROR`; `actualTimeHours: null` lo borra (`TaskChanges.clearActualTimeHours`).
+- **Curso -> tareas**: `course.application.ports.out.CourseTaskLookup` lo implementa `CourseTaskLookupAdapter` (módulo de tareas), así que la persistencia de curso no conoce las clases JPA de tarea. `DeleteCourseService` responde 409 `COURSE_HAS_TASKS`; la FK `RESTRICT` es la red de seguridad (una violación que se cuele responde 409 `CONFLICT`).
+- **Recordatorios**: puerto `ReminderScheduler` (`schedule` para tareas nuevas, `reschedule` para reemplazar o quitar uno obsoleto, `cancel`; idempotentes). Los servicios no lo llaman directamente: usan `TaskReminders`, que registra la acción para **después del commit** y la envía al `reminderExecutor` (pool de 2-4 hilos, cola 100, sin `CallerRunsPolicy`: si se satura, se descarta con un `ERROR`), de modo que ni el hilo de la petición ni la conexión a la base de datos esperan a AWS; cualquier fallo se registra a nivel `ERROR` sin romper la operación. Crear programa; actualizar reprograma si cambia `dueDate` o `title`; pasar a `done`/`cancelled` o borrar cancela. Implementaciones: `NoopReminderScheduler` (por defecto) y `EventBridgeReminderScheduler` (`reminder.scheduler=eventbridge`, falla al arrancar si faltan `REMINDER_QUEUE_ARN`/`REMINDER_ROLE_ARN`, ver `ReminderProperties`). El mensaje a SQS cumple el contrato de las dos lambdas consumidoras: `{"type":"task.due_reminder","taskId","userId","title","dueDate","leadHours","taskTitle","deadline"}`. `process_expiration` exige `type`, `taskId` y `userId` y usa `taskTitle`/`deadline` para el texto; `sendEmail` solo procesa `task.due_reminder` y exige `taskId`, `userId`, `title` y `dueDate` (`leadHours` entra en el asunto), por eso título y fecha viajan con ambos nombres.
+- **Cliente AWS**: `SchedulerClientFactory` fija timeouts de llamada/intento, reintentos y timeouts HTTP (`REMINDER_API_TIMEOUT`, `REMINDER_API_ATTEMPT_TIMEOUT`, `REMINDER_MAX_RETRIES`, `REMINDER_CONNECT_TIMEOUT`, `REMINDER_SOCKET_TIMEOUT`). `reminder.async=false` ejecuta las acciones en el hilo que llama (solo para tests).
+- **Tests**: dominio y servicios sin Spring (fakes en memoria); repositorio y API con Testcontainers; el `ReminderScheduler` de los tests de integración es `support/RecordingReminderScheduler` (registra llamadas y puede fallar).

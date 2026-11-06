@@ -44,21 +44,6 @@ public class UpdatePeriodRequest {
     private LocalDate endDate;
 
     /**
-     * Validates that if both dates are provided, start is before end
-     */
-    @AssertTrue(
-            message = "Start date must be before end date",
-            payload = {},
-            groups = {}
-    )
-    public boolean isStartBeforeEnd() {
-        if (startDate == null || endDate == null) {
-            return true;
-        }
-        return startDate.isBefore(endDate);
-    }
-
-    /**
      * Check if any field has been set for update
      */
     public boolean hasAnyField() {
@@ -67,21 +52,5 @@ public class UpdatePeriodRequest {
                 || year != null
                 || startDate != null
                 || endDate != null;
-    }
-
-    /**
-     * Create a new request with only the non-null fields merged into the existing one
-     */
-    public UpdatePeriodRequest mergeWith(UpdatePeriodRequest other) {
-        if (other == null) {
-            return this;
-        }
-        return UpdatePeriodRequest.builder()
-                .name(other.name != null ? other.name : this.name)
-                .type(other.type != null ? other.type : this.type)
-                .year(other.year != null ? other.year : this.year)
-                .startDate(other.startDate != null ? other.startDate : this.startDate)
-                .endDate(other.endDate != null ? other.endDate : this.endDate)
-                .build();
     }
 }

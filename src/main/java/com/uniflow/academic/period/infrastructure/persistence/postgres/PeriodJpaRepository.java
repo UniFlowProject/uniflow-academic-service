@@ -6,7 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,47 +14,22 @@ public interface PeriodJpaRepository
         extends JpaRepository<PeriodEntity, String> {
 
     /**
-     * Find a period by ID and student ID
+     * Find a period by ID and user ID
      */
-    Optional<PeriodEntity> findByIdAndStudentId(
+    Optional<PeriodEntity> findByIdAndUserId(
             String id,
-            String studentId
+            String userId
     );
 
     /**
-     * Find all periods for a student
+     * Find all periods for a user
      */
-    Page<PeriodEntity> findByStudentId(
-            String studentId,
+    Page<PeriodEntity> findByUserIdOrderByStartDateDesc(
+            String userId,
             Pageable pageable
     );
 
-    /**
-     * Find all periods for a student filtered by type
-     */
-    Page<PeriodEntity> findByStudentIdAndType(
-            String studentId,
-            String type,
-            Pageable pageable
-    );
-
-    /**
-     * Find all periods for a student filtered by year
-     */
-    Page<PeriodEntity> findByStudentIdAndYear(
-            String studentId,
-            Integer year,
-            Pageable pageable
-    );
-
-    /**
-     * Find all periods for a student filtered by active status
-     */
-    Page<PeriodEntity> findByStudentIdAndIsActive(
-            String studentId,
-            Boolean isActive,
-            Pageable pageable
-    );
+    List<PeriodEntity> findAllByUserId(String userId);
 
     /**
      * Find all periods with multiple filters
@@ -63,7 +37,7 @@ public interface PeriodJpaRepository
     @Query(
             """
             SELECT p FROM PeriodEntity p
-            WHERE p.studentId = :studentId
+            WHERE p.userId = :userId
             AND (:type IS NULL OR p.type = :type)
             AND (:year IS NULL OR p.year = :year)
             AND (:isActive IS NULL OR p.isActive = :isActive)
@@ -71,7 +45,7 @@ public interface PeriodJpaRepository
             """
     )
     Page<PeriodEntity> findAllWithFilters(
-            @Param("studentId") String studentId,
+            @Param("userId") String userId,
             @Param("type") String type,
             @Param("year") Integer year,
             @Param("isActive") Boolean isActive,
@@ -79,40 +53,25 @@ public interface PeriodJpaRepository
     );
 
     /**
-     * Find the current active period for a student
+     * Find the current active period for a user
      */
-    Optional<PeriodEntity> findByStudentIdAndIsActive(
-            String studentId,
+    Optional<PeriodEntity> findByUserIdAndIsActive(
+            String userId,
             Boolean isActive
     );
 
     /**
-     * Find all active periods for a student
+     * Find all active periods for a user
      */
-    List<PeriodEntity> findAllByStudentIdAndIsActive(
-            String studentId,
+    List<PeriodEntity> findAllByUserIdAndIsActive(
+            String userId,
             Boolean isActive
     );
 
     /**
-     * Check if period exists for student
+     * Check if period exists for user
      */
-    boolean existsByIdAndStudentId(String id, String studentId);
+    boolean existsByIdAndUserId(String id, String userId);
 
-    /**
-     * Custom query to find periods overlapping with given dates
-     */
-    @Query(
-            """
-            SELECT p FROM PeriodEntity p
-            WHERE p.studentId = :studentId
-            AND p.startDate <= :endDate
-            AND p.endDate >= :startDate
-            """
-    )
-    List<PeriodEntity> findOverlappingPeriods(
-            @Param("studentId") String studentId,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate
-    );
+    long deleteByIdAndUserId(String id, String userId);
 }

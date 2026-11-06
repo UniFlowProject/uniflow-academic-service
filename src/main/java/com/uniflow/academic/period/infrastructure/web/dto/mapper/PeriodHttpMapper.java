@@ -1,14 +1,12 @@
 package com.uniflow.academic.period.infrastructure.web.dto.mapper;
 
 import com.uniflow.academic.period.application.ports.in.CreatePeriodCommand;
-import com.uniflow.academic.period.application.ports.in.GetAllPeriodsQuery;
 import com.uniflow.academic.period.application.ports.out.dto.PeriodStatisticsResponse;
 import com.uniflow.academic.period.application.ports.out.dto.UpdatePeriodRequest;
 import com.uniflow.academic.period.domain.Period;
+import com.uniflow.academic.shared.application.PagedResult;
 import com.uniflow.academic.period.infrastructure.web.dto.*;
 import org.springframework.stereotype.Component;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Mapper between HTTP DTOs and application layer objects.
@@ -69,7 +67,7 @@ public class PeriodHttpMapper {
                 .year(period.getYear())
                 .startDate(period.getStartDate())
                 .endDate(period.getEndDate())
-                .studentId(period.getStudentId())
+                .userId(period.getUserId())
                 .isActive(period.getIsActive())
                 .createdAt(period.getCreatedAt())
                 .updatedAt(period.getUpdatedAt())
@@ -79,36 +77,10 @@ public class PeriodHttpMapper {
     /**
      * Convert paginated periods to HTTP response
      */
-    public PaginationHttpResponse toPaginationHttpResponse(
-            GetAllPeriodsQuery.PaginatedPeriodsResponse response
-    ) {
-        if (response == null) {
-            return null;
-        }
-
-        List<PeriodHttpResponse> periodResponses = response.getData().stream()
-                .map(this::toHttpResponse)
-                .collect(Collectors.toList());
-
-        PaginationHttpResponse.Pagination pagination =
-                PaginationHttpResponse.Pagination.builder()
-                        .page(response.getPagination().getPage())
-                        .limit(response.getPagination().getLimit())
-                        .total(response.getPagination().getTotal())
-                        .totalPages(response.getPagination().getTotalPages())
-                        .hasNext(response.getPagination().getHasNext())
-                        .hasPrevious(response.getPagination().getHasPrevious())
-                        .build();
-
-        return PaginationHttpResponse.builder()
-                .data(periodResponses)
-                .pagination(pagination)
-                .build();
+    public PagedResult<PeriodHttpResponse> toPagedResponse(PagedResult<Period> result) {
+        return result.map(this::toHttpResponse);
     }
 
-    /**
-     * Convert statistics to HTTP response
-     */
     public PeriodStatisticsHttpResponse toStatisticsHttpResponse(
             PeriodStatisticsResponse response
     ) {

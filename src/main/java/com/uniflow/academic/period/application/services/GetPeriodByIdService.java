@@ -22,19 +22,19 @@ public class GetPeriodByIdService implements GetPeriodByIdQuery {
     private final PeriodRepository periodRepository;
 
     @Override
-    public Period execute(String periodId, String studentId) {
+    public Period execute(String periodId, String userId) {
         log.info(
-                "Fetching period: {} for student: {}",
+                "Fetching period: {} for user: {}",
                 periodId,
-                studentId
+                userId
         );
 
-        Period period = periodRepository.findById(periodId, studentId)
+        Period period = periodRepository.findById(periodId, userId)
                 .orElseThrow(() -> {
                     log.warn(
-                            "Period not found: {} for student: {}",
+                            "Period not found: {} for user: {}",
                             periodId,
-                            studentId
+                            userId
                     );
                     return new PeriodNotFoundException(
                             "Period not found: " + periodId

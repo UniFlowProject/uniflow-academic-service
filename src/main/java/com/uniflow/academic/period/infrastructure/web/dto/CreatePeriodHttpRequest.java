@@ -62,10 +62,4 @@ public class CreatePeriodHttpRequest {
             format = "date"
     )
     private LocalDate endDate;
-
-    @AssertTrue(message = "Start date must be before end date")
-    public boolean isStartBeforeEnd() {
-        if (startDate == null || endDate == null) return true;
-        return startDate.isBefore(endDate);
-    }
 }

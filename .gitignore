@@ -34,3 +34,14 @@ build/
 
 ### Envs ###
 .env
+.env.*
+!.env.example
+
+# Terraform local state
+terraform/.terraform/
+
+# Terraform local config
+terraform/backend.hcl
+terraform/*.tfvars
+terraform/*.tfstate*
+terraform/*.plan
