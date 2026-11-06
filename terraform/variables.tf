@@ -30,7 +30,7 @@ variable "task_memory" {
 
 variable "desired_count" {
   type        = number
-  description = "Number of Fargate tasks to run"
+  description = "Number of Fargate tasks to run. Use 0 to stop the service without destroying it (first apply, before an image exists in ECR, or to pause the demo): terraform apply -var desired_count=0"
   default     = 1
 }
 
@@ -48,11 +48,22 @@ variable "log_retention_days" {
 
 variable "github_repo" {
   type        = string
-  description = "GitHub repo allowed to assume the CI role via OIDC, as org/repo. CHANGE THIS to the real repo before applying."
-  default     = "Uniflow/uniflow-academic-service"
+  description = "GitHub repo allowed to assume the CI role via OIDC (main branch only), as org/repo"
+  default     = "UniFlowProject/uniflow-academic-service"
 
   validation {
     condition     = !can(regex("[*?]", var.github_repo))
     error_message = "github_repo must not contain wildcards (* or ?) — the OIDC trust condition uses StringEquals and expects an exact org/repo."
+  }
+}
+
+variable "reminder_scheduler" {
+  type        = string
+  description = "Reminder backend: eventbridge (EventBridge Scheduler into the expirations queue) or noop"
+  default     = "eventbridge"
+
+  validation {
+    condition     = contains(["eventbridge", "noop"], var.reminder_scheduler)
+    error_message = "reminder_scheduler must be eventbridge or noop."
   }
 }
