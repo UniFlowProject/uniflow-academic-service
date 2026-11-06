@@ -8,8 +8,8 @@ locals {
     "vpc_id",
     "public_subnet_ids",
     "ecs_cluster_arn",
-    "vpc_link_sg_id",
-    "cloudmap_academic_service_arn",
+    "alb_sg_id",
+    "academic_target_group_arn",
     "rds_sg_id",
     "rds_address",
     "rds_port",
@@ -34,7 +34,7 @@ locals {
 
   # Demo network: tasks run in the public subnets with a public IP (no NAT
   # gateway). They are still unreachable from the internet: the security group
-  # only admits the API Gateway VPC link.
+  # only admits the internal ALB.
   service_subnet_ids = split(",", local.platform.public_subnet_ids)
 }
 
@@ -79,7 +79,7 @@ resource "aws_cloudwatch_log_group" "uniflow_service" {
 #   }
 # }
 
-# --- Security group: the app port is open only to the API Gateway VPC link. ---
+# --- Security group: the app port is open only to the internal ALB. ---
 
 resource "aws_security_group" "ecs_service" {
   name        = "${var.project-tag}-academic-service-sg"
@@ -91,10 +91,10 @@ resource "aws_security_group" "ecs_service" {
   }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "from_vpc_link" {
+resource "aws_vpc_security_group_ingress_rule" "from_alb" {
   security_group_id            = aws_security_group.ecs_service.id
-  description                  = "App port from the API Gateway VPC link"
-  referenced_security_group_id = local.platform.vpc_link_sg_id
+  description                  = "App port from the internal ALB"
+  referenced_security_group_id = local.platform.alb_sg_id
   ip_protocol                  = "tcp"
   from_port                    = var.container_port
   to_port                      = var.container_port
@@ -276,9 +276,15 @@ resource "aws_ecs_service" "uniflow_service" {
     assign_public_ip = true
   }
 
-  # Registers the task IP in Cloud Map; the HTTP API reaches it through the VPC link.
-  service_registries {
-    registry_arn = local.platform.cloudmap_academic_service_arn
+  # Spring Boot needs about 60s to start; ignore failing ALB health checks meanwhile.
+  health_check_grace_period_seconds = 90
+
+  # Registers the task IP in the internal ALB target group; the HTTP API reaches
+  # the ALB through the VPC link.
+  load_balancer {
+    target_group_arn = local.platform.academic_target_group_arn
+    container_name   = "academic-service"
+    container_port   = var.container_port
   }
 
   tags = {
