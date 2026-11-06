@@ -219,4 +219,4 @@ Los tests de integración usan Testcontainers (PostgreSQL 16) y requieren Docker
 
 ## Despliegue
 
-La imagen se construye con el `Dockerfile` y se publica en ECR con `.github/workflows/deploy-ecr.yml`. La infraestructura está en `terraform/`.
+La imagen se construye con el `Dockerfile` y `.github/workflows/deploy-ecr.yml` la publica en ECR autenticándose por OIDC con GitHub Actions (sin llaves estáticas); luego fuerza un nuevo despliegue del servicio ECS, que usa la etiqueta `latest`. El servicio corre en ECS Fargate detrás de un ALB interno, y API Gateway lo expone al exterior mediante un VPC link. El servicio, el repositorio ECR y el rol de CI se definen en `terraform/`; la red, el clúster ECS, la base de datos y Cognito pertenecen al stack del repositorio central (https://github.com/UniFlowProject/uniflow), que los publica como parámetros SSM.
