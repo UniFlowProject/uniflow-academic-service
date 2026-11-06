@@ -45,3 +45,6 @@ terraform/backend.hcl
 terraform/*.tfvars
 terraform/*.tfstate*
 terraform/*.plan
+
+# Local agent tooling
+.atl/
