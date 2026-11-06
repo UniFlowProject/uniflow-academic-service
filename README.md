@@ -92,7 +92,7 @@ Recursos que crea `floci-init` (valores fijos, no hace falta ningún archivo de 
 
 | Recurso | Valor |
 |---|---|
-| User pool | `us-east-1_UniflowDev` (como `terraform/auth.tf`: login por email, política de contraseñas de 10+ caracteres) |
+| User pool | `us-east-1_UniflowDev` (como `infra/auth.tf` del repositorio central: login por email, política de contraseñas de 10+ caracteres) |
 | App client | `uniflow-spa` (público, sin secret; además de SRP y refresh habilita `USER_PASSWORD_AUTH`, solo para el helper de tokens) |
 | Usuarios | `user-a@uniflow.local` (`UserA-Dev-Passw0rd`) y `user-b@uniflow.local` (`UserB-Dev-Passw0rd`); se pueden cambiar con `USER_A_PASSWORD` / `USER_B_PASSWORD` |
 | RDS | instancia `uniflow-db`, PostgreSQL 16, base `uniflow_db`, usuario `postgres` / contraseña `password` (`DB_NAME`, `DB_USER`, `DB_PASSWORD`); Flyway crea el esquema `academic` al arrancar la app |
@@ -172,7 +172,7 @@ La app en el host escucha en `8080` por defecto y se conecta a la base por `loca
 docker compose -f docker-compose.dev.yml --profile reminders up -d --build
 ```
 
-`floci-init-reminders` (`docker/floci/reminders.sh`) replica `terraform/messaging.tf`: colas `uniflow-expirations`, `uniflow-in-app-notifications` y `uniflow-email-notifications` (cada una con su DLQ), topic SNS `uniflow-notifications` suscrito a las dos últimas, grupo de Scheduler `uniflow`, rol `uniflow-scheduler`, y la Lambda real `process_expiration` (Node.js 22, copia de `lambdas/process_expiration/index.mjs` del repo raíz en `docker/floci/lambdas/`) conectada a `uniflow-expirations` con *report batch item failures*. Escribe `/out/reminders.env`, que el entrypoint de desarrollo de `app` carga para usar `REMINDER_SCHEDULER=eventbridge`, `REMINDER_GROUP_NAME`, `REMINDER_QUEUE_ARN`, `REMINDER_ROLE_ARN` y `REMINDER_LEAD_TIME_HOURS=0` (el SDK de AWS lee `AWS_ENDPOINT_URL` y las credenciales `test`/`test`). Si ya tenías el stack levantado sin el perfil, añade `--force-recreate app` para que la app tome la configuración.
+`floci-init-reminders` (`docker/floci/reminders.sh`) replica `infra/messaging.tf` del repositorio central: colas `uniflow-expirations`, `uniflow-in-app-notifications` y `uniflow-email-notifications` (cada una con su DLQ), topic SNS `uniflow-notifications` suscrito a las dos últimas, grupo de Scheduler `uniflow`, rol `uniflow-scheduler`, y la Lambda real `process_expiration` (Node.js 22, copia de `lambdas/process_expiration/index.mjs` del repo raíz en `docker/floci/lambdas/`) conectada a `uniflow-expirations` con *report batch item failures*. Escribe `/out/reminders.env`, que el entrypoint de desarrollo de `app` carga para usar `REMINDER_SCHEDULER=eventbridge`, `REMINDER_GROUP_NAME`, `REMINDER_QUEUE_ARN`, `REMINDER_ROLE_ARN` y `REMINDER_LEAD_TIME_HOURS=0` (el SDK de AWS lee `AWS_ENDPOINT_URL` y las credenciales `test`/`test`). Si ya tenías el stack levantado sin el perfil, añade `--force-recreate app` para que la app tome la configuración.
 
 Con antelación 0, un recordatorio se dispara a la hora de `dueDate`. Prueba: crea una tarea con `dueDate` unos 2 minutos en el futuro, comprueba que existe el schedule y, tras la hora, que el mensaje llegó a las colas de notificaciones y a los logs de la Lambda:
 
@@ -219,4 +219,6 @@ Los tests de integración usan Testcontainers (PostgreSQL 16) y requieren Docker
 
 ## Despliegue
 
-La imagen se construye con el `Dockerfile` y `.github/workflows/deploy-ecr.yml` la publica en ECR autenticándose por OIDC con GitHub Actions (sin llaves estáticas); luego fuerza un nuevo despliegue del servicio ECS, que usa la etiqueta `latest`. El servicio corre en ECS Fargate detrás de un ALB interno, y API Gateway lo expone al exterior mediante un VPC link. El servicio, el repositorio ECR y el rol de CI se definen en `terraform/`; la red, el clúster ECS, la base de datos y Cognito pertenecen al stack del repositorio central (https://github.com/UniFlowProject/uniflow), que los publica como parámetros SSM.
+La imagen se construye con el `Dockerfile` y `.github/workflows/deploy-ecr.yml` la publica en ECR autenticándose por OIDC con GitHub Actions (sin llaves estáticas); luego fuerza un nuevo despliegue del servicio ECS, que usa la etiqueta `latest`. El servicio corre en ECS Fargate detrás de un ALB interno, y API Gateway lo expone al exterior mediante un VPC link. Toda la infraestructura (repositorio ECR, servicio ECS, red, base de datos, Cognito y el rol de CI) se define en `infra/` del repositorio central: https://github.com/UniFlowProject/uniflow.
+
+El workflow necesita la variable de repositorio de GitHub `AWS_ROLE_ARN` (Settings > Secrets and variables > Actions > Variables), con el valor de la salida `github_actions_role_arns` (clave `academic`) del stack central. El rol solo confía en la rama `main`.

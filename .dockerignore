@@ -12,5 +12,4 @@ mvnw.cmd
 docker-compose*.yml
 docker/
 scripts/
-terraform/
 .env*
