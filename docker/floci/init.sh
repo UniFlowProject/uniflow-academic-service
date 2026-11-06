@@ -17,7 +17,7 @@ if aws cognito-idp describe-user-pool --user-pool-id "$POOL_ID" >/dev/null 2>&1;
   log "user pool $POOL_ID already exists"
 else
   log "creating user pool $POOL_ID"
-  # Mirrors terraform/auth.tf: email as username, auto-verified email, same password policy.
+  # Mirrors infra/auth.tf (central repo): email as username, auto-verified email, same password policy.
   aws cognito-idp create-user-pool \
     --pool-name uniflow-users \
     --username-attributes email \
@@ -35,7 +35,7 @@ if [ "$domain" = "None" ] || [ -z "$domain" ]; then
   aws cognito-idp create-user-pool-domain --user-pool-id "$POOL_ID" --domain "$POOL_DOMAIN"
 fi
 
-# Public client without secret, like the SPA client in terraform/auth.tf: Authorization Code (+ PKCE) through
+# Public client without secret, like the SPA client in infra/auth.tf (central repo): Authorization Code (+ PKCE) through
 # the Hosted UI, scopes openid email profile, Cognito as the only identity provider. USER_PASSWORD_AUTH is added
 # (dev only) so the token helper can sign in with the AWS CLI; the real client uses SRP.
 # The SPA sends redirect_uri=<origin>/auth/callback (UniFlow-Frontend/src/lib/cognito.ts) and logout_uri=<origin>.

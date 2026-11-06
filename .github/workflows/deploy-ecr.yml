@@ -15,6 +15,8 @@ permissions:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: uniflow/academic-service
+  ECS_CLUSTER: uniflow-cluster
+  ECS_SERVICE: uniflow-academic-service
 
 jobs:
   build-and-push:
@@ -51,3 +53,11 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      # The service is pinned to image_tag=latest, so a forced deployment makes it pull the new image.
+      - name: Roll out the new image on ECS
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --force-new-deployment

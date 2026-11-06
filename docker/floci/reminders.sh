@@ -1,5 +1,5 @@
 #!/bin/sh
-# Reminder pipeline of the `reminders` compose profile, mirroring terraform/messaging.tf:
+# Reminder pipeline of the `reminders` compose profile, mirroring infra/messaging.tf in the central repo:
 #   EventBridge Scheduler group + role -> SQS "expirations" -> Lambda process_expiration -> SNS topic
 #   -> SQS "in-app-notifications" / "email-notifications".
 # DEV ONLY. Idempotent: every resource is looked up before it is created.
@@ -35,7 +35,7 @@ queue_arn() {
   aws sqs get-queue-attributes --queue-url "$1" --attribute-names QueueArn --query Attributes.QueueArn --output text
 }
 
-# --- Queues (names follow terraform: <project>-<name> and <project>-<name>-dlq) --------------------
+# --- Queues (names follow infra/: <project>-<name> and <project>-<name>-dlq) --------------------
 # create-queue is idempotent when the attributes do not change, and set-queue-attributes keeps them aligned.
 for q in expirations in-app-notifications email-notifications; do
   dlq_arn=$(queue_arn "$(queue_url "$PREFIX-$q-dlq")")
