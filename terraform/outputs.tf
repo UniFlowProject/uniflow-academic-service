@@ -3,7 +3,7 @@ output "ecr_repository_url" {
 }
 
 output "ecs_cluster_name" {
-  value = element(split("/", local.platform.ecs_cluster_arn), 1)
+  value = nonsensitive(element(split("/", local.platform.ecs_cluster_arn), 1))
 }
 
 output "ecs_service_name" {
